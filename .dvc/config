@@ -2,3 +2,5 @@
     remote = s3remote
 ['remote "s3remote"']
     url = s3://s3-bucket-energy/data_collection
+['remote "s3preproc"']
+    url = s3://s3-bucket-energy/data_preprocessing
