@@ -16,7 +16,6 @@ def get_yesterday_dates():
 
 # ---------- 1️⃣ OPEN-METEO WEATHER DATA ----------
 def fetch_weather_data(lat=51.5072, lon=-0.1276):
-    """Fetch yesterday's hourly weather data for given coordinates."""
     start_date, end_date = get_yesterday_dates()
     url = (
         f"https://archive-api.open-meteo.com/v1/archive?"
@@ -44,7 +43,6 @@ def fetch_weather_data(lat=51.5072, lon=-0.1276):
 
 # ---------- 2️⃣ OPEN-METEO AIR QUALITY DATA ----------
 def fetch_air_quality(lat=51.5072, lon=-0.1276):
-    """Fetch yesterday's air quality and pollutant data."""
     start_date, end_date = get_yesterday_dates()
     url = (
         f"https://air-quality-api.open-meteo.com/v1/air-quality?"
@@ -71,24 +69,47 @@ def fetch_air_quality(lat=51.5072, lon=-0.1276):
     return df_aqi
 
 
-# ---------- 3️⃣ UK CARBON INTENSITY ----------
+# ---------- 3️⃣ UK CARBON INTENSITY (FETCH LAST 2 DAYS) ----------
 def fetch_carbon_intensity():
-    """Fetch UK carbon intensity for yesterday."""
-    start_date, _ = get_yesterday_dates()
-    url = f"https://api.carbonintensity.org.uk/intensity/date/{start_date}"
-    response = requests.get(url)
-    response.raise_for_status()
-    data = response.json().get("data", [])
 
+    yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+    today = datetime.now(timezone.utc).date()
+    
+    all_records = []
+    
+    # Fetch yesterday
+    url_yesterday = f"https://api.carbonintensity.org.uk/intensity/date/{yesterday}"
+    try:
+        response = requests.get(url_yesterday)
+        response.raise_for_status()
+        data = response.json().get("data", [])
+        all_records.extend(data)
+    except:
+        pass
+    
+    # Fetch today (to get any late data from yesterday)
+    url_today = f"https://api.carbonintensity.org.uk/intensity/date/{today}"
+    try:
+        response = requests.get(url_today)
+        response.raise_for_status()
+        data = response.json().get("data", [])
+        all_records.extend(data)
+    except:
+        pass
+    
     records = [{
         "datetime": r.get("from"),
         "carbon_intensity_actual": r.get("intensity", {}).get("actual"),
         "carbon_intensity_forecast": r.get("intensity", {}).get("forecast"),
         "carbon_index": r.get("intensity", {}).get("index"),
-    } for r in data]
+    } for r in all_records]
 
     df_carbon = pd.DataFrame(records)
     df_carbon["datetime"] = pd.to_datetime(df_carbon["datetime"], utc=True)
+    
+    # Filter to only yesterday's data
+    df_carbon = df_carbon[df_carbon["datetime"].dt.date == yesterday]
+    
     return df_carbon
 
 
@@ -106,15 +127,18 @@ def fetch_carbon_generation_mix():
     mix_dict = {"datetime": timestamp}
     for item in gen_mix:
         fuel = item["fuel"].lower().replace(" ", "_")
+        # Only include specific fuel types
         if fuel in ["biomass", "imports", "gas", "nuclear", "solar", "wind"]:
             mix_dict[f"uk_gen_{fuel}_%"] = item["perc"]
 
     return pd.DataFrame([mix_dict])
 
-
-# ---------- 5️⃣ OCTOPUS ENERGY PRICES ----------
+# ---------- 5️⃣ OCTOPUS ENERGY PRICES (FETCH LAST 3 DAYS) ----------
 def fetch_octopus_prices():
-    """Fetch retail electricity prices (Agile Octopus)."""
+    """
+    Fetch retail electricity prices for the last 3 days.
+    This ensures we capture all half-hourly prices that were published day-ahead.
+    """
     products_url = "https://api.octopus.energy/v1/products/"
     response = requests.get(products_url)
     response.raise_for_status()
@@ -135,7 +159,19 @@ def fetch_octopus_prices():
     if not tariff_code:
         tariff_code = f"E-1R-{product_code}-A"
 
-    rates_url = f"https://api.octopus.energy/v1/products/{product_code}/electricity-tariffs/{tariff_code}/standard-unit-rates/"
+    # Fetch last 3 days to ensure we get all yesterday's prices
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=3)
+    
+    period_from = start_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+    period_to = end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    rates_url = (
+        f"https://api.octopus.energy/v1/products/{product_code}/"
+        f"electricity-tariffs/{tariff_code}/standard-unit-rates/"
+        f"?period_from={period_from}&period_to={period_to}"
+    )
+    
     response = requests.get(rates_url)
     response.raise_for_status()
     data = response.json().get("results", [])
@@ -143,17 +179,41 @@ def fetch_octopus_prices():
     df_prices = pd.DataFrame(data)
     df_prices["datetime"] = pd.to_datetime(df_prices["valid_from"], utc=True)
     df_prices["retail_price_£_per_kWh"] = df_prices["value_inc_vat"] / 100
-    df_prices = df_prices[df_prices["datetime"].dt.date == (datetime.now(timezone.utc).date() - timedelta(days=1))]
+    
+    # Filter to only yesterday's data
+    yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
+    df_prices = df_prices[df_prices["datetime"].dt.date == yesterday]
+    
     return df_prices[["datetime", "retail_price_£_per_kWh"]]
 
 
 # ---------- 6️⃣ MERGE ALL SOURCES ----------
 def merge_all_sources(weather_df, aqi_df, carbon_df, carbon_gen_df, prices_df):
-    """Merge all data sources on datetime."""
-    merged = weather_df.merge(aqi_df, on="datetime", how="outer")
+    """
+    Merge all data sources on datetime.
+    Uses merge_asof for prices since they're half-hourly.
+    """
+    # Start with hourly weather data
+    merged = weather_df.copy()
+    
+    # Merge hourly data (exact matches)
+    merged = merged.merge(aqi_df, on="datetime", how="outer")
     merged = merged.merge(carbon_df, on="datetime", how="outer")
-    merged = merged.merge(prices_df, on="datetime", how="outer")
+    
+    # Sort before merge_asof
+    merged = merged.sort_values("datetime").reset_index(drop=True)
+    prices_df = prices_df.sort_values("datetime").reset_index(drop=True)
+    
+    # (matches nearest half-hourly price to each hour) 9:30 -> 10:00, 10:30 --> 11:00 etc.
+    merged = pd.merge_asof(
+        merged,
+        prices_df,
+        on="datetime",
+        direction="nearest",
+        tolerance=pd.Timedelta("30min")  # Allow 30-minute difference
+    )
 
+    # Add generation mix (forward fill for all rows)
     for col in carbon_gen_df.columns:
         if col != "datetime":
             merged[col] = carbon_gen_df[col].iloc[0]
@@ -172,67 +232,105 @@ def append_to_historical(new_data, save_dir="data", file_name="uk_energy_data.cs
         existing_df = pd.read_csv(save_path)
         existing_df["datetime"] = pd.to_datetime(existing_df["datetime"], utc=True)
 
-        pd.set_option('future.no_silent_downcasting', True)  # log  
-
-        yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1))
+        # Filter new data to only yesterday
+        yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
         new_data = new_data[new_data["datetime"].dt.date == yesterday]
 
+        # Combine datasets
         combined = pd.concat([existing_df, new_data], ignore_index=True)
 
-        combined = (
-            combined.sort_values(["datetime"])
-            .groupby("datetime", as_index=False, group_keys=False)
-            .apply(lambda g: g.ffill().bfill().iloc[-1])
-            .reset_index(drop=True)
+        # keeping the most recent data for each datetime
+        combined = combined.sort_values(["datetime", "datetime"]).drop_duplicates(
+            subset=["datetime"], keep="last"
         )
-        combined = combined.drop_duplicates(subset=["datetime"], keep="first")
-
-
-        combined = combined.infer_objects(copy=False)
+        
         combined = combined.sort_values("datetime").reset_index(drop=True)
 
         combined.to_csv(save_path, index=False)
-        print(f"✅ Appended data to {save_path}")
+        print(f"Appended {len(new_data)} records to {save_path}")
         return combined
     else:
         new_data.to_csv(save_path, index=False)
-        print(f"🆕 Created new file: {save_path}")
+        print(f"Created new file: {save_path}")
         return new_data
 
 
 # ---------- 8️⃣ DAILY COLLECTION ----------
 def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"):
-    """Fetch yesterday’s data and append to historical CSV."""
     try:
         yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
         print(f"\n{'='*55}")
-        print(f"⚡ Collecting Data for {yesterday}")
+        print(f"Collecting Data for {yesterday}")
         print(f"{'='*55}\n")
 
+        print("Fetching weather data...")
         weather_df = fetch_weather_data()
+        print(f"   ✓ {len(weather_df)} weather records")
+        
+        print("Fetching air quality data...")
         aqi_df = fetch_air_quality()
+        print(f"   ✓ {len(aqi_df)} air quality records")
+        
+        print("Fetching carbon intensity (last 2 days)...")
         carbon_df = fetch_carbon_intensity()
+        print(f"   ✓ {len(carbon_df)} carbon intensity records")
+        
+        print("Fetching generation mix...")
         carbon_gen_df = fetch_carbon_generation_mix()
+        print(f"   ✓ Generation mix fetched")
+        
+        print("Fetching electricity prices (last 3 days)...")
         prices_df = fetch_octopus_prices()
+        print(f"   ✓ {len(prices_df)} price records")
 
+        print("\n🔄 Merging datasets...")
         merged_df = merge_all_sources(weather_df, aqi_df, carbon_df, carbon_gen_df, prices_df)
 
-        # 🧹 Clean duplicates and only keep full-hour data
+        # Keep only full-hour data and ensure datetime format
         merged_df["datetime"] = pd.to_datetime(merged_df["datetime"], utc=True)
+        
+        # Filter to only yesterday's data
+        yesterday_date = datetime.now(timezone.utc).date() - timedelta(days=1)
+        merged_df = merged_df[merged_df["datetime"].dt.date == yesterday_date]
+        
+        # Keep only full hours (minute == 0)
         merged_df = merged_df[merged_df["datetime"].dt.minute == 0]
-        merged_df = merged_df.drop_duplicates(subset=["datetime"], keep="first")
         merged_df = merged_df.sort_values("datetime").reset_index(drop=True)
+
+        print(f"   ✓ {len(merged_df)} hourly records for {yesterday_date}")
+        
+        # Check data completeness
+        print("\nData Completeness Check:")
+        missing_carbon = merged_df["carbon_intensity_actual"].isnull().sum()
+        missing_prices = merged_df["retail_price_£_per_kWh"].isnull().sum()
+        missing_weather = merged_df["temperature_C"].isnull().sum()
+        
+        print(f"   Missing weather: {missing_weather}/{len(merged_df)}")
+        print(f"   Missing carbon intensity: {missing_carbon}/{len(merged_df)}")
+        print(f"   Missing prices: {missing_prices}/{len(merged_df)}")
+        
+        if missing_prices > 0:
+            print(f"\nPrice data missing for hours:")
+            missing_price_hours = merged_df[merged_df["retail_price_£_per_kWh"].isnull()]["datetime"]
+            for dt in missing_price_hours:
+                print(f"      {dt}")
+        
+        if missing_carbon > 2 or missing_prices > 5:
+            print(f"\nWARNING: High missing data count!")
+            print(f"   This is expected if APIs haven't updated yet.")
+            print(f"   Consider running this script later in the day (after 2 PM UTC).")
 
         final_df = append_to_historical(merged_df, save_dir, file_name)
 
-        print(f"\n✅ Collection Complete for {yesterday}")
-        print(f"📅 Range in file: {final_df['datetime'].min()} → {final_df['datetime'].max()}")
+        print(f"\nCollection Complete for {yesterday}")
+        print(f"Total records in file: {len(final_df)}")
+        print(f"Range: {final_df['datetime'].min()} → {final_df['datetime'].max()}")
         print(f"{'='*55}\n")
 
         return final_df
 
     except Exception as e:
-        print(f"❌ Error during daily data collection: {e}")
+        print(f"Error during daily data collection: {e}")
         raise
 
 
