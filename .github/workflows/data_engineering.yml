@@ -49,7 +49,7 @@ jobs:
 
       # 6️⃣ Run data preprocessing script
       - name: Run data preprocessing
-        run: python "data_preprocessing/data_preprocessing.py"
+        run: python "data preprocessing/data_preprocessing.py"
 
       # 7️⃣ Track updated engineered_features.csv with DVC
       - name: Track updated engineered_features.csv with DVC
