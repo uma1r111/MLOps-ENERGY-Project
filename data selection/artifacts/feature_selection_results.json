@@ -1,0 +1,43 @@
+{
+  "experiment": "UK Energy - Feature Selection",
+  "mlflow_uri": "http://172.210.183.133:8000/",
+  "data_path": "../data/engineered_features.csv",
+  "target": "retail_price_\u00a3_per_kWh",
+  "n_features": 50,
+  "n_samples": 1939,
+  "train_size": 1551,
+  "test_size": 388,
+  "optuna_trials": 50,
+  "best_model": "Random Forest",
+  "rf_metrics": {
+    "mse": 0.0005320372643019684,
+    "rmse": 0.02306593298138986,
+    "mae": 0.014722979859621694,
+    "r2": 0.917840956306248,
+    "mape": 7.029967846250288
+  },
+  "xgb_metrics": {
+    "mse": 0.0007927088324594244,
+    "rmse": 0.028155085374749343,
+    "mae": 0.015617006630092552,
+    "r2": 0.8775871466674331,
+    "mape": 7.221770962429548
+  },
+  "rf_best_params": {
+    "n_estimators": 208,
+    "max_depth": 28,
+    "min_samples_split": 2,
+    "min_samples_leaf": 1,
+    "max_features": 0.5
+  },
+  "xgb_best_params": {
+    "n_estimators": 103,
+    "max_depth": 14,
+    "learning_rate": 0.04171963395390847,
+    "subsample": 0.9618045899107114,
+    "colsample_bytree": 0.6285869849907426,
+    "gamma": 0.007845040109763772,
+    "reg_alpha": 0.08063099973488728,
+    "reg_lambda": 0.5465545231110513
+  }
+}
