@@ -1,0 +1,77 @@
+name: Select Feature Automation
+
+on:
+  workflow_run:
+    workflows: ["Feature Engineering"]
+    types:
+      - completed
+  workflow_dispatch: # manual trigger
+
+jobs:
+  select-features:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy dvc[s3]
+
+      # 4️⃣ Configure AWS credentials (for DVC)
+      - name: Configure AWS credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: echo "AWS credentials configured"
+
+      # 5️⃣ Pull engineered_features.csv and selected_features.csv from S3
+      - name: Pull data from S3 (via DVC)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          echo "Pulling engineered_features.csv..."
+          dvc pull data/engineered_features.csv.dvc -r s3preproc || echo "No engineered data found"
+          echo "Pulling selected_features.csv..."
+          dvc pull data/selected_features.csv.dvc -r s3feat_selec || echo "No selected_features found (first run)"
+
+      # 6️⃣ Run the select_features.py script
+      - name: Run Select Features Update
+        run: python "data selection/data_selection.py"
+
+      # 7️⃣ Track updated selected_features.csv with DVC
+      - name: Track updated selected_features.csv with DVC
+        run: |
+          dvc add data/selected_features.csv
+          git add data/selected_features.csv.dvc .gitignore
+
+      # 8️⃣ Commit DVC changes and push to GitHub
+      - name: Commit DVC changes and push to GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git commit -m "Update selected_features.csv [auto-select-feature]" || echo "No changes to commit"
+          git push origin main || echo "No push access (check repo permissions)"
+
+      # 9️⃣ Push updated data to S3 (DVC)
+      - name: Push updated selected_features.csv to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: dvc push -r s3feat_selec
