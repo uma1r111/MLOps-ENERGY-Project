@@ -3,6 +3,9 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
+import time
+import json
+from pathlib import Path
 
 load_dotenv()
 
@@ -14,7 +17,7 @@ def get_yesterday_dates():
     return str(yesterday), str(yesterday)
 
 
-# ---------- 1️⃣ OPEN-METEO WEATHER DATA ----------
+# ---------- OPEN-METEO WEATHER DATA ----------
 def fetch_weather_data(lat=51.5072, lon=-0.1276):
     start_date, end_date = get_yesterday_dates()
     url = (
@@ -41,7 +44,7 @@ def fetch_weather_data(lat=51.5072, lon=-0.1276):
     return df_weather
 
 
-# ---------- 2️⃣ OPEN-METEO AIR QUALITY DATA ----------
+# ---------- OPEN-METEO AIR QUALITY DATA ----------
 def fetch_air_quality(lat=51.5072, lon=-0.1276):
     start_date, end_date = get_yesterday_dates()
     url = (
@@ -69,9 +72,8 @@ def fetch_air_quality(lat=51.5072, lon=-0.1276):
     return df_aqi
 
 
-# ---------- 3️⃣ UK CARBON INTENSITY (FETCH LAST 2 DAYS) ----------
+# ---------- UK CARBON INTENSITY (FETCH LAST 2 DAYS) ----------
 def fetch_carbon_intensity():
-
     yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
     today = datetime.now(timezone.utc).date()
     
@@ -113,9 +115,8 @@ def fetch_carbon_intensity():
     return df_carbon
 
 
-# ---------- 4️⃣ UK GENERATION MIX ----------
+# ---------- UK GENERATION MIX ----------
 def fetch_carbon_generation_mix():
-    """Fetch yesterday's UK electricity generation mix (fuel type %)."""
     url = "https://api.carbonintensity.org.uk/generation"
     response = requests.get(url)
     response.raise_for_status()
@@ -133,12 +134,8 @@ def fetch_carbon_generation_mix():
 
     return pd.DataFrame([mix_dict])
 
-# ---------- 5️⃣ OCTOPUS ENERGY PRICES (FETCH LAST 3 DAYS) ----------
+# ---------- OCTOPUS ENERGY PRICES (FETCH LAST 3 DAYS) ----------
 def fetch_octopus_prices():
-    """
-    Fetch retail electricity prices for the last 3 days.
-    This ensures we capture all half-hourly prices that were published day-ahead.
-    """
     products_url = "https://api.octopus.energy/v1/products/"
     response = requests.get(products_url)
     response.raise_for_status()
@@ -187,12 +184,8 @@ def fetch_octopus_prices():
     return df_prices[["datetime", "retail_price_£_per_kWh"]]
 
 
-# ---------- 6️⃣ MERGE ALL SOURCES ----------
+# ---------- MERGE ALL SOURCES ----------
 def merge_all_sources(weather_df, aqi_df, carbon_df, carbon_gen_df, prices_df):
-    """
-    Merge all data sources on datetime.
-    Uses merge_asof for prices since they're half-hourly.
-    """
     # Start with hourly weather data
     merged = weather_df.copy()
     
@@ -222,9 +215,8 @@ def merge_all_sources(weather_df, aqi_df, carbon_df, carbon_gen_df, prices_df):
     return merged
 
 
-# ---------- 7️⃣ APPEND TO EXISTING FILE ----------
+# ---------- APPEND TO EXISTING FILE ----------
 def append_to_historical(new_data, save_dir="data", file_name="uk_energy_data.csv"):
-    """Append new data to existing historical CSV (dedup by datetime)."""
     save_path = os.path.join(save_dir, file_name)
     os.makedirs(save_dir, exist_ok=True)
 
@@ -255,8 +247,8 @@ def append_to_historical(new_data, save_dir="data", file_name="uk_energy_data.cs
         return new_data
 
 
-# ---------- 8️⃣ DAILY COLLECTION ----------
-def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"):
+# ---------- DAILY COLLECTION ----------
+def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data1.csv"):
     try:
         yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
         print(f"\n{'='*55}")
@@ -335,4 +327,73 @@ def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"
 
 
 if __name__ == "__main__":
-    collect_and_append_yesterday()
+    try:
+        # Run main collection
+        final_df = collect_and_append_yesterday()
+
+        print("Saving monitoring metrics...")
+
+        # Total APIs you call
+        total_apis = 5  
+        success_count = 0
+        total_response_time = 0.0
+
+        # Record individual API calls and durations
+        api_calls = {
+            "weather": "https://archive-api.open-meteo.com/v1/archive",
+            "air_quality": "https://air-quality-api.open-meteo.com/v1/air-quality",
+            "carbon_intensity": "https://api.carbonintensity.org.uk/intensity/date",
+            "generation_mix": "https://api.carbonintensity.org.uk/generation",
+            "octopus_prices": "https://api.octopus.energy/v1/products/",
+        }
+
+        # test each endpoint
+        import requests
+        for name, url in api_calls.items():
+            try:
+                start = time.time()
+                resp = requests.head(url, timeout=5)
+                resp.raise_for_status()
+                duration = round(time.time() - start, 3)
+                success_count += 1
+                total_response_time += duration
+            except Exception:
+                duration = None
+
+        # Compute metrics
+        api_success_rate = round(success_count / total_apis, 2)
+        avg_response_time = round(total_response_time / success_count, 3) if success_count else None
+
+        # Prepare monitoring folder
+        Path("monitoring").mkdir(parents=True, exist_ok=True)
+        metrics_path = Path("monitoring/metrics.json")
+
+        # Load existing metrics if available
+        if metrics_path.exists():
+            try:
+                with open(metrics_path, "r") as f:
+                    metrics = json.load(f)
+            except Exception:
+                print("⚠️ Failed to load existing metrics.json — starting fresh.")
+                metrics = {}
+        else:
+            metrics = {}
+
+        # Update with new data
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        metrics.update({
+            "total_apis": total_apis,
+            "last_run": timestamp,
+            "api_success_rate": api_success_rate,
+            "avg_api_response_time": avg_response_time
+            
+        })
+
+        # Save metrics
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+
+        print(f"Monitoring metrics saved to {metrics_path}")
+
+    except Exception as e:
+        print(f"Error in main process: {e}")
