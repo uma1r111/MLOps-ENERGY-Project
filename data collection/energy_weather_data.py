@@ -248,7 +248,7 @@ def append_to_historical(new_data, save_dir="data", file_name="uk_energy_data.cs
 
 
 # ---------- DAILY COLLECTION ----------
-def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data1.csv"):
+def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"):
     try:
         yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
         print(f"\n{'='*55}")
