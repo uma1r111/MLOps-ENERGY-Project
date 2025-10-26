@@ -47,41 +47,36 @@ SELECTED_FEATURES = [
 
 def update_selected_features():
     """Update selected_features.csv with new rows from engineered_features.csv."""
-    # --- Load engineered features ---
     if not os.path.exists(ENGINEERED_PATH):
-        logger.error(f"Missing file: {ENGINEERED_PATH}")
+        print(f"❌ Missing file: {ENGINEERED_PATH}")
         return
 
+    # --- Load engineered features ---
     full_df = pd.read_csv(ENGINEERED_PATH)
-    full_df['datetime'] = pd.to_datetime(full_df['datetime'])
+    full_df['datetime'] = pd.to_datetime(full_df['datetime'], utc=True)
 
     # --- If selected_features.csv does not exist, create it ---
     if not os.path.exists(SELECTED_PATH):
-        logger.info("selected_features.csv not found — creating a new one.")
+        print("selected_features.csv not found — creating a new one.")
         selected_df = full_df[SELECTED_FEATURES].copy()
         selected_df.to_csv(SELECTED_PATH, index=False)
-        logger.info(f"✅ Created selected_features.csv with {len(selected_df)} rows.")
+        print(f"✅ Created selected_features.csv with {len(selected_df)} rows.")
         return
 
     # --- Load existing selected features ---
     feature_df = pd.read_csv(SELECTED_PATH)
-    feature_df['datetime'] = pd.to_datetime(feature_df['datetime'])
+    feature_df['datetime'] = pd.to_datetime(feature_df['datetime'], utc=True)
 
-    # --- Check if new rows exist ---
+    # --- Find new rows ---
     last_datetime = feature_df['datetime'].max()
     new_data = full_df[full_df['datetime'] > last_datetime]
 
     if new_data.empty:
-        if len(full_df) == len(feature_df):
-            logger.info("✅ No new rows detected. selected_features.csv is already up-to-date.")
-        else:
-            logger.warning("⚠️ No newer datetime found, but row counts differ — please verify data consistency.")
+        print("✅ No new rows detected. selected_features.csv is already up-to-date.")
         return
 
-    # --- Extract only new rows and selected features ---
+    # --- Append new rows and remove duplicates ---
     new_feature_data = new_data[SELECTED_FEATURES]
-
-    # --- Append new rows and remove duplicates based on datetime ---
     updated_df = pd.concat([feature_df, new_feature_data], ignore_index=True)
     updated_df = updated_df.drop_duplicates(subset="datetime", keep="last")
 
@@ -89,8 +84,7 @@ def update_selected_features():
     updated_df['datetime'] = updated_df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
     updated_df.to_csv(SELECTED_PATH, index=False)
 
-    logger.info(f"✅ Added {len(new_feature_data)} new rows to selected_features.csv (Total: {len(updated_df)})")
-
+    print(f"✅ Added {len(new_feature_data)} new rows to selected_features.csv (Total: {len(updated_df)})")
 
 if __name__ == "__main__":
     update_selected_features()
