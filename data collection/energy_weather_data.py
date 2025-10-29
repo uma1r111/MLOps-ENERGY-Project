@@ -76,9 +76,9 @@ def fetch_air_quality(lat=51.5072, lon=-0.1276):
 def fetch_carbon_intensity():
     yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
     today = datetime.now(timezone.utc).date()
-    
+
     all_records = []
-    
+
     # Fetch yesterday
     url_yesterday = f"https://api.carbonintensity.org.uk/intensity/date/{yesterday}"
     try:
@@ -86,9 +86,9 @@ def fetch_carbon_intensity():
         response.raise_for_status()
         data = response.json().get("data", [])
         all_records.extend(data)
-    except:
-        pass
-    
+    except Exception as e:
+        print(f"Error fetching data for {yesterday}: {e}")
+
     # Fetch today (to get any late data from yesterday)
     url_today = f"https://api.carbonintensity.org.uk/intensity/date/{today}"
     try:
@@ -96,23 +96,28 @@ def fetch_carbon_intensity():
         response.raise_for_status()
         data = response.json().get("data", [])
         all_records.extend(data)
-    except:
-        pass
-    
-    records = [{
-        "datetime": r.get("from"),
-        "carbon_intensity_actual": r.get("intensity", {}).get("actual"),
-        "carbon_intensity_forecast": r.get("intensity", {}).get("forecast"),
-        "carbon_index": r.get("intensity", {}).get("index"),
-    } for r in all_records]
+    except Exception as e:
+        print(f"Error fetching data for {today}: {e}")
+
+    # Convert into DataFrame
+    records = [
+        {
+            "datetime": r.get("from"),
+            "carbon_intensity_actual": r.get("intensity", {}).get("actual"),
+            "carbon_intensity_forecast": r.get("intensity", {}).get("forecast"),
+            "carbon_index": r.get("intensity", {}).get("index"),
+        }
+        for r in all_records
+    ]
 
     df_carbon = pd.DataFrame(records)
     df_carbon["datetime"] = pd.to_datetime(df_carbon["datetime"], utc=True)
-    
+
     # Filter to only yesterday's data
     df_carbon = df_carbon[df_carbon["datetime"].dt.date == yesterday]
-    
+
     return df_carbon
+
 
 
 # ---------- UK GENERATION MIX ----------
@@ -269,7 +274,7 @@ def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"
         
         print("Fetching generation mix...")
         carbon_gen_df = fetch_carbon_generation_mix()
-        print(f"   ✓ Generation mix fetched")
+        print("   ✓ Generation mix fetched")
         
         print("Fetching electricity prices (last 3 days)...")
         prices_df = fetch_octopus_prices()
@@ -302,15 +307,15 @@ def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"
         print(f"   Missing prices: {missing_prices}/{len(merged_df)}")
         
         if missing_prices > 0:
-            print(f"\nPrice data missing for hours:")
+            print("\nPrice data missing for hours:")
             missing_price_hours = merged_df[merged_df["retail_price_£_per_kWh"].isnull()]["datetime"]
             for dt in missing_price_hours:
                 print(f"      {dt}")
         
         if missing_carbon > 2 or missing_prices > 5:
-            print(f"\nWARNING: High missing data count!")
-            print(f"   This is expected if APIs haven't updated yet.")
-            print(f"   Consider running this script later in the day (after 2 PM UTC).")
+            print("\nWARNING: High missing data count!")
+            print("   This is expected if APIs haven't updated yet.")
+            print("   Consider running this script later in the day (after 2 PM UTC).")
 
         final_df = append_to_historical(merged_df, save_dir, file_name)
 
