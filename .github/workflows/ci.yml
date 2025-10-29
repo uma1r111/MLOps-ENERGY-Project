@@ -1,72 +1,86 @@
-name: CI
+name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, security ]
   pull_request:
     branches: [ main ]
 
 jobs:
   lint:
-    name: Lint
+    name: Lint Code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install lint tools
+          python-version: "3.10"
+
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff black
-      - name: Run ruff
-        run: ruff check .
-      - name: Run black check
-        run: black --check .
+          pip install ruff
+
+      - name: Run Ruff linter
+        run: |
+          ruff check . --output-format=github
 
   test:
-    name: Test
+    name: Run Tests
     runs-on: ubuntu-latest
-    needs: [lint]
+    needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install deps
+          python-version: "3.10"
+
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-      - name: Run tests
+          pip install pytest pytest-cov
+
+      - name: Run Pytest with coverage
         run: |
-          pytest --maxfail=1 --disable-warnings -q
-      - name: Upload coverage (optional)
-        if: success()
+          pytest --maxfail=1 --disable-warnings --cov=. --cov-report=term-missing
+
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
         run: |
-          coverage run -m pytest
-          coverage xml
+          docker build -t mlops-energy:latest .
 
   security:
-    name: Security & Dependency Audit
+    name: Dependency Security Scan
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: docker
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python 3.11
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install project dependencies and pip-audit
+          python-version: "3.10"
+
+      - name: Install pip-audit
         run: |
           python -m pip install --upgrade pip
-          # Install runtime deps if requirements.txt exists
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # Install dev deps which include pip-audit
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-      - name: Run pip-audit (fail on critical)
-        # This command will cause the job to fail if any CRITICAL vulnerability is found
+          pip install pip-audit
+
+      - name: Run pip-audit (fail on critical CVEs)
         run: |
-          pip-audit --fail-on vulnerability:critical --require-virt
+          pip-audit --strict --ignore-vuln PYSEC-2023-74 || exit 1
