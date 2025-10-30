@@ -85,13 +85,14 @@ jobs:
       - name: Export Energy model to .bentoml archive
         run: |
             echo "Using model tag: $MODEL_TAG"
-            mkdir -p models                      #Create the folder first
+            mkdir -p models                      
             MODEL_HASH=${MODEL_TAG#*:}
             EXPORT_BASE="./models/energy_model_${MODEL_HASH}"
-            echo "Exporting to: ${EXPORT_BASE}.bentomodel"
-            bentoml models export "$MODEL_TAG" "${EXPORT_BASE}.bentomodel"
+            echo "Exporting to: ${EXPORT_BASE}"
+            bentoml models export "$MODEL_TAG" "models/${EXPORT_BASE}"
             ACTUAL_FILENAME="${EXPORT_BASE}.bentomodel"
             echo "ACTUAL_FILENAME=$ACTUAL_FILENAME" >> $GITHUB_ENV
+            echo "✅ Exported to: $ACTUAL_FILENAME"
             
       # ✅ Upload model archive to S3
       - name: Upload Energy model to S3
