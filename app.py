@@ -86,7 +86,7 @@ def index():
     </head>
     <body>
         <h1>⚡ MLOps ENERGY Dashboard</h1>
-        <p>Monitoring your Flask app’s health in real-time</p>
+        <p>Monitoring Server's health in real-time</p>
 
         <div class="card">
             <div id="status" class="status">Checking...</div>
