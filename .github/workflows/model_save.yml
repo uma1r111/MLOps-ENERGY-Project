@@ -43,7 +43,7 @@ jobs:
 
       # ✅ Run your model training or saving script
       - name: Run Energy Model Save script
-        run: python "model Training/model.py"
+        run: python "model training/model.py"
 
       # ✅ Track and commit predictions (optional)
       - name: Track updated predictions.csv with DVC
