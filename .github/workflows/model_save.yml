@@ -39,7 +39,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
-        run: dvc pull -r pred data/predictions.csv.dvc
+        run: dvc pull -r pred data/predictions.csv.dvc || echo "No existing predictions.csv, will create new one"
 
       # ✅ Run your model training or saving script
       - name: Run Energy Model Save script
@@ -67,11 +67,17 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
         run: dvc push -r pred
 
-      # ✅ Get latest Energy model tag
+      # ✅ Get latest Energy model tag (FIXED)
       - name: Get latest Energy BentoML model tag
         id: get_model_tag
         run: |
           MODEL_TAG=$(bentoml models list --output=json | jq -r '.[] | select(.tag | startswith("energy_model:")) | .tag' | sort | tail -n1)
+          
+          if [ -z "$MODEL_TAG" ]; then
+            echo "❌ No energy_model found in BentoML store!"
+            exit 1
+          fi
+          
           echo "MODEL_TAG=$MODEL_TAG" >> $GITHUB_ENV
           echo "Found model tag: $MODEL_TAG"
 

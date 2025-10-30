@@ -153,26 +153,32 @@ full_model = build_lstm_model(lstm_params, (SEQ_LEN, X_train.shape[2])) if "LSTM
 full_model.fit(X_seq, y_seq, epochs=20, batch_size=32, verbose=1, shuffle=False)
 
 # ----------------------
-# Step 7: Save Model with BentoML
+# Step 7: Save Model with BentoML (FIXED)
 # ----------------------
 try:
-    saved_model = bentoml.tensorflow.save_model(
-    name="energy_model",  # Model name
-    model=full_model,
-    signatures={"predict": {"batchable": True}},
-    metadata={
-        "model_type": best_model_name,
-        "best_params": best_model["params"],
-        "mae": float(best_model["mae"]),
-        "rmse": float(best_model["rmse"]),
-        "seq_length": SEQ_LEN,
-        "n_features": X_scaled.shape[1],
-        "features": list(features.columns),
-        "target": target_col,
-        "training_date": str(pd.Timestamp.now()),
-        "data_date_range": f"{df['datetime'].min()} to {df['datetime'].max()}"
-    }
-)
+    # Make the model inference-only by calling it once to build the graph
+    # This ensures all variables are tracked properly
+    dummy_input = np.zeros((1, SEQ_LEN, X_scaled.shape[1]), dtype=np.float32)
+    _ = full_model.predict(dummy_input, verbose=0)
+    
+    # Use keras.save_model instead of deprecated tensorflow.save_model
+    saved_model = bentoml.keras.save_model(
+        name="energy_model",
+        model=full_model,
+        signatures={"__call__": {"batchable": True}},
+        metadata={
+            "model_type": best_model_name,
+            "best_params": best_model["params"],
+            "mae": float(best_model["mae"]),
+            "rmse": float(best_model["rmse"]),
+            "seq_length": SEQ_LEN,
+            "n_features": X_scaled.shape[1],
+            "features": list(features.columns),
+            "target": target_col,
+            "training_date": str(pd.Timestamp.now()),
+            "data_date_range": f"{df['datetime'].min()} to {df['datetime'].max()}"
+        }
+    )
 
     print(f"   ✅ Model saved to BentoML: {saved_model.tag}")
     print(f"      Model name: {saved_model.tag.name}")
@@ -180,6 +186,9 @@ try:
     
 except Exception as e:
     print(f"   ❌ Failed to save model: {e}")
+    import traceback
+    traceback.print_exc()
+    raise  # Re-raise to fail the workflow if model save fails
 
 
 # ----------------------
@@ -192,7 +201,7 @@ last_seq = X_scaled[-SEQ_LEN:]
 predictions = []
 
 for _ in range(PREDICT_HORIZON):
-    pred = full_model.predict(last_seq.reshape(1, SEQ_LEN, X_scaled.shape[1]))
+    pred = full_model.predict(last_seq.reshape(1, SEQ_LEN, X_scaled.shape[1]), verbose=0)
     predictions.append(pred[0, 0])
     new_row = np.append(last_seq[-1, 1:], pred[0, 0])
     last_seq = np.vstack((last_seq[1:], new_row))
