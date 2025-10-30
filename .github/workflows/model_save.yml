@@ -1,4 +1,4 @@
-name: Model Save - Energy
+name: Model Save
 
 on:
   workflow_run: # Trigger after Feature Selection completes
