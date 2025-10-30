@@ -9,6 +9,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from math import sqrt
 from datetime import timedelta
 import bentoml
+import os
+import time
+import json
 
 # ----------------------
 # Step 1: Load Data
@@ -218,3 +221,48 @@ print(f"Max predicted Retail price per kwh: {future_preds_inv.max():.2f}")
 print(f"Prediction period: {future_dates[0]} → {future_dates[-1]}")
 
 print("\n🎉 LSTM-GRU training and prediction workflow completed successfully!")
+
+# ----------------------
+# Save training metrics to monitoring/metric.json
+# ----------------------
+
+# Path to metrics file
+metrics_path = "monitoring/metrics.json"
+
+# Capture training duration
+end_time = time.time()
+if 'start_time' not in globals():
+    start_time = end_time  # fallback if start_time wasn't set earlier
+training_duration = round(end_time - start_time, 2)
+
+# New metrics to save
+new_metrics = {
+    "best_model": best_model_name,
+    "rmse": round(best_model['rmse'], 4),
+    "mae": round(best_model['mae'], 4),
+    "training_duration_seconds": training_duration
+}
+
+# Load or initialize
+if os.path.exists(metrics_path):
+    with open(metrics_path, "r") as f:
+        try:
+            metrics = json.load(f)
+        except json.JSONDecodeError:
+            metrics = {}
+else:
+    metrics = {}
+
+# Update only relevant keys
+metrics.update(new_metrics)
+
+# Write back
+metrics_dir = os.path.dirname(metrics_path)
+if metrics_dir:  # Only create if it's a non-empty directory
+    os.makedirs(metrics_dir, exist_ok=True)
+
+with open(metrics_path, "w") as f:
+    json.dump(metrics, f, indent=4)
+
+print(f"✅ Training metrics saved to {metrics_path}")
+print(json.dumps(new_metrics, indent=4))
