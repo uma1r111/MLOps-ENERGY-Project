@@ -82,15 +82,15 @@ jobs:
           echo "Found model tag: $MODEL_TAG"
 
       # ✅ Export model archive (.bentomodel)
-      - name: Export Energy model to BentoML archive
+      - name: Export Energy model to .bentoml archive
         run: |
           echo "Using model tag: $MODEL_TAG"
           MODEL_HASH=${MODEL_TAG#*:}
           EXPORT_BASE="energy_model_${MODEL_HASH}"
-          echo "Exporting to: $EXPORT_BASE.bentomodel"
-          bentoml models export "$MODEL_TAG" "$EXPORT_BASE"
-          ACTUAL_FILENAME="${EXPORT_BASE}.bentomodel"
-          echo "ACTUAL_FILENAME=$ACTUAL_FILENAME" >> $GITHUB_ENV
+          echo "Exporting to: ./models/$EXPORT_BASE.bentomodel"
+          mkdir -p models
+          bentoml models export "$MODEL_TAG" "./models/$EXPORT_BASE.bentomodel"
+          echo "ACTUAL_FILENAME=models/$EXPORT_BASE.bentomodel" >> $GITHUB_ENV
 
       # ✅ Upload model archive to S3
       - name: Upload Energy model to S3
