@@ -156,22 +156,30 @@ full_model.fit(X_seq, y_seq, epochs=20, batch_size=32, verbose=1, shuffle=False)
 # Step 7: Save Model with BentoML
 # ----------------------
 try:
-    saved_model = tensorflow.save_model(
-        f"{best_model_name.lower()}_model",
-        full_model,
-        metadata={
-            "model_type": best_model_name,
-            "best_params": best_model["params"],
-            "mae": best_model["mae"],
-            "rmse": best_model["rmse"],
-            "seq_length": SEQ_LEN,
-            "features": list(features.columns),
-            "target": target_col
-        }
-    )
-    print(f"✅ Model saved successfully: {saved_model}")
+    saved_model = bentoml.tensorflow.save_model(
+    name="energy_model",  # Model name
+    model=full_model,
+    signatures={"predict": {"batchable": True}},
+    metadata={
+        "model_type": best_model_name,
+        "best_params": best_model["params"],
+        "mae": float(best_model["mae"]),
+        "rmse": float(best_model["rmse"]),
+        "seq_length": SEQ_LEN,
+        "n_features": X_scaled.shape[1],
+        "features": list(features.columns),
+        "target": target_col,
+        "training_date": str(pd.Timestamp.now()),
+        "data_date_range": f"{df['datetime'].min()} to {df['datetime'].max()}"
+    }
+)
+
+    print(f"   ✅ Model saved to BentoML: {saved_model.tag}")
+    print(f"      Model name: {saved_model.tag.name}")
+    print(f"      Version: {saved_model.tag.version}")
+    
 except Exception as e:
-    print(f"⚠️ Failed to save model: {e}")
+    print(f"   ❌ Failed to save model: {e}")
 
 
 # ----------------------
