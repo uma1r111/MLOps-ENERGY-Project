@@ -193,7 +193,7 @@ future_preds_inv = scaler_y.inverse_transform(np.array(predictions).reshape(-1, 
 future_dates = pd.date_range(start=df["datetime"].iloc[-1] + pd.Timedelta(hours=1), periods=PREDICT_HORIZON, freq="H")
 
 output_df = pd.DataFrame({"datetime": future_dates, "predicted_retail_price_£_per_kWh": future_preds_inv.flatten()})
-output_df.to_csv("../data/predictions.csv", index=False)
+output_df.to_csv("data/predictions.csv", index=False)
 
 print("✅ retail_price per kWh predictions for next 3 days saved to predictions.csv")
 print(f"Average predicted Retail price per kwh: {future_preds_inv.mean():.2f}")
