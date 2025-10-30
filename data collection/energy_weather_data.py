@@ -334,7 +334,7 @@ if __name__ == "__main__":
         print("Saving monitoring metrics...")
 
         # Total APIs you call
-        total_apis = 5  
+        total_apis = 3 
         success_count = 0
         total_response_time = 0.0
 
@@ -342,7 +342,7 @@ if __name__ == "__main__":
         api_calls = {
             "weather": "https://archive-api.open-meteo.com/v1/archive",
             "air_quality": "https://air-quality-api.open-meteo.com/v1/air-quality",
-            "carbon_intensity": "https://api.carbonintensity.org.uk/intensity/date",
+            "carbon_intensity": "https://api.carbonintensity.org.uk/intensity",
             "generation_mix": "https://api.carbonintensity.org.uk/generation",
             "octopus_prices": "https://api.octopus.energy/v1/products/",
         }
