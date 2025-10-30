@@ -6,3 +6,5 @@
     url = s3://s3-bucket-energy/data_preprocessing
 ['remote "s3feat_selec"']
     url = s3://s3-bucket-energy/selected_features
+['remote "pred"']
+    url = s3://s3-bucket-energy/predictions

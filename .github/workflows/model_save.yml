@@ -1,0 +1,135 @@
+name: Model Save
+
+on:
+  workflow_run: # Trigger after Feature Selection completes
+    workflows: ["Select Feature Automation"]
+    types:
+      - completed
+  workflow_dispatch: # Allow manual run
+
+jobs:
+  energy-model-save:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scikit-learn tensorflow keras dvc[s3] bentoml boto3
+
+      # ✅ Pull latest selected features
+      - name: Pull selected_features.csv via DVC (from s3feat_selec)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: dvc pull -r s3feat_selec data/selected_features.csv.dvc
+
+      # ✅ Pull predictions (if needed)
+      - name: Pull predictions.csv via DVC (from pred)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: dvc pull -r pred data/predictions.csv.dvc || echo "No existing predictions.csv, will create new one"
+
+      # ✅ Run your model training or saving script
+      - name: Run Energy Model Save script
+        run: python "model training/model.py"
+
+      # ✅ Track and commit predictions.csv
+      - name: Track updated predictions.csv with DVC
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          dvc add data/predictions.csv
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add data/predictions.csv.dvc .gitignore
+          git commit -m "Update predictions.csv via DVC [skip ci]" || echo "No changes to commit"
+          git push origin main
+
+      # ✅ Push predictions to S3
+      - name: Push predictions data to S3 (via DVC)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: dvc push -r pred
+
+      # ✅ Get latest Energy model tag (FIXED)
+      - name: Get latest Energy BentoML model tag
+        id: get_model_tag
+        run: |
+          MODEL_TAG=$(bentoml models list --output=json | jq -r '.[] | select(.tag | startswith("energy_model:")) | .tag' | sort | tail -n1)
+          
+          if [ -z "$MODEL_TAG" ]; then
+            echo "❌ No energy_model found in BentoML store!"
+            exit 1
+          fi
+          
+          echo "MODEL_TAG=$MODEL_TAG" >> $GITHUB_ENV
+          echo "Found model tag: $MODEL_TAG"
+
+        # ✅ Export model archive (.bentomodel)
+      - name: Export Energy model to .bentoml archive
+        run: |
+          echo "Using model tag: $MODEL_TAG"
+          MODEL_HASH=${MODEL_TAG#*:}
+
+          # Define a safe absolute export directory inside the repo workspace
+          EXPORT_DIR="$GITHUB_WORKSPACE/models"
+          mkdir -p "$EXPORT_DIR"
+
+          EXPORT_BASE="$EXPORT_DIR/energy_model_${MODEL_HASH}"
+          echo "Exporting to: ${EXPORT_BASE}.bentomodel"
+
+          # BentoML export (safe absolute path)
+          bentoml models export "$MODEL_TAG" "${EXPORT_BASE}.bentomodel"
+
+          ACTUAL_FILENAME="${EXPORT_BASE}.bentomodel"
+          echo "ACTUAL_FILENAME=$ACTUAL_FILENAME" >> $GITHUB_ENV
+          
+      # ✅ Upload model archive to S3
+      - name: Upload Energy model to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          echo "Uploading: $ACTUAL_FILENAME"
+          aws s3 cp "$ACTUAL_FILENAME" "s3://s3-bucket-energy/models/"
+
+      # ✅ Keep last 3 Energy models in S3
+      - name: Clean up older Energy models (keep last 3)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          echo "Listing all Energy model files in S3..."
+          files=$(aws s3 ls s3://s3-bucket-energy/models/ | grep energy_model_ | sort)
+          total_files=$(echo "$files" | wc -l)
+          
+          echo "Total model files: $total_files"
+
+          if [ "$total_files" -le 3 ]; then
+            echo "Nothing to delete. Less than or equal to 3 models."
+          else
+            to_delete=$(echo "$files" | head -n $(($total_files - 3)) | awk '{print $4}')
+            for file in $to_delete; do
+              echo "Deleting $file..."
+              aws s3 rm "s3://s3-bucket-energy/models/$file"
+            done
+            echo "Cleanup complete."
+          fi
