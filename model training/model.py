@@ -157,7 +157,6 @@ full_model.fit(X_seq, y_seq, epochs=20, batch_size=32, verbose=1, shuffle=False)
 # ----------------------
 try:
     # Make the model inference-only by calling it once to build the graph
-    # This ensures all variables are tracked properly
     dummy_input = np.zeros((1, SEQ_LEN, X_scaled.shape[1]), dtype=np.float32)
     _ = full_model.predict(dummy_input, verbose=0)
     

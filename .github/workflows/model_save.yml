@@ -45,7 +45,7 @@ jobs:
       - name: Run Energy Model Save script
         run: python "model training/model.py"
 
-      # ✅ Track and commit predictions (optional)
+      # ✅ Track and commit predictions.csv
       - name: Track updated predictions.csv with DVC
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
