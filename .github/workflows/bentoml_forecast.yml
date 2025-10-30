@@ -1,0 +1,109 @@
+name: BentoML Energy Model Forecast
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # Runs daily at 3 PM PKT
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Model Save"]
+    types:
+      - completed
+
+jobs:
+  bentoml-forecast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy bentoml==1.2.0 dvc[s3] scikit-learn tensorflow requests
+
+      - name: Pull feature_selection.csv from S3 (via DVC)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: dvc pull feature_selection.csv.dvc
+
+      - name: Get Latest BentoML Energy Model from S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          echo "Getting latest energy model from S3..."
+          LATEST_MODEL=$(aws s3 ls s3://s3-bucket-energy/models/ | grep energy_model_ | sort | tail -n1 | awk '{print $4}')
+          echo "Latest model: $LATEST_MODEL"
+
+          if [ -z "$LATEST_MODEL" ]; then
+            echo "❌ No energy_model found in S3"
+            exit 1
+          fi
+
+          echo "Downloading $LATEST_MODEL..."
+          aws s3 cp "s3://s3-bucket-energy/models/$LATEST_MODEL" "./"
+          echo "BENTOML_MODEL_FILE=$LATEST_MODEL" >> $GITHUB_ENV
+
+      - name: Import BentoML Model
+        run: |
+          echo "Importing BentoML model: $BENTOML_MODEL_FILE"
+          bentoml models import "$BENTOML_MODEL_FILE"
+
+          MODEL_TAG=$(bentoml models list --output=json | jq -r '.[] | select(.tag | startswith("energy_model:")) | .tag' | sort | tail -n1)
+          echo "Imported model tag: $MODEL_TAG"
+          echo "MODEL_TAG=$MODEL_TAG" >> $GITHUB_ENV
+
+      - name: Copy Service File
+        run: |
+          cp "Model Serving/service.py" ./service.py
+          echo "Copied service.py from Model Serving folder"
+
+      - name: Start BentoML Service
+        run: |
+          echo "Starting BentoML service with model: $MODEL_TAG"
+          nohup bentoml serve service.py:svc --port 3000 --host 0.0.0.0 > bentoml_service.log 2>&1 &
+          echo "Waiting for BentoML service to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/health_check -H "Content-Type: application/json" -d '{}' >/dev/null 2>&1; then
+              echo "✅ BentoML service is running"
+              break
+            fi
+            echo "Attempt $i: Service not ready yet..."
+            sleep 3
+          done
+
+          if ! curl -s http://localhost:3000/health_check -H "Content-Type: application/json" -d '{}' >/dev/null 2>&1; then
+            echo "❌ BentoML service failed to start"
+            cat bentoml_service.log
+            ps aux | grep bentoml || true
+            exit 1
+          fi
+
+          echo "Testing service endpoint..."
+          curl -X POST http://localhost:3000/health_check -H "Content-Type: application/json" -d '{}'
+
+      - name: Run BentoML prediction client
+        run: python "Prediction Client/run_prediction_client.py"
+
+      - name: Stop BentoML Service
+        if: always()
+        run: |
+          echo "Stopping BentoML service..."
+          pkill -f "bentoml serve" || true
+          echo "Service stopped"
+
+      - name: Commit updated forecast output
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add bentoml_forecast_output.csv
+          git commit -m "Update bentoml_forecast_output.csv [CI]" || echo "No changes to commit"
+          git push origin main
