@@ -26,12 +26,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy bentoml==1.2.0 dvc[s3] scikit-learn tensorflow requests
 
-      - name: Pull feature_selection.csv from S3 (via DVC)
+      - name: Pull selected_features.csv via DVC (from s3feat_selec)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
-        run: dvc pull feature_selection.csv.dvc
+        run: dvc pull -r s3feat_selec data/selected_features.csv.dvc
 
       - name: Get Latest BentoML Energy Model from S3
         env:
@@ -63,7 +63,7 @@ jobs:
 
       - name: Copy Service File
         run: |
-          cp "Model Serving/service.py" ./service.py
+          cp "model serving/service.py" ./service.py
           echo "Copied service.py from Model Serving folder"
 
       - name: Start BentoML Service
@@ -91,7 +91,7 @@ jobs:
           curl -X POST http://localhost:3000/health_check -H "Content-Type: application/json" -d '{}'
 
       - name: Run BentoML prediction client
-        run: python "Prediction Client/run_prediction_client.py"
+        run: python "prediction client/run_prediction_client.py"
 
       - name: Stop BentoML Service
         if: always()
