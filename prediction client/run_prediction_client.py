@@ -7,7 +7,7 @@ import json
 print("\n🔹 Loading and preparing input data...")
 
 try:
-    df = pd.read_csv("../data/selected_features.csv")
+    df = pd.read_csv("data/selected_features.csv")
     df["datetime"] = pd.to_datetime(df["datetime"])
     df = df.sort_values("datetime")
 
