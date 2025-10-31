@@ -1,13 +1,11 @@
 import pandas as pd
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, GRU, Dense, Dropout
+from tensorflow.keras.layers import LSTM, GRU, Dense
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from math import sqrt
-from datetime import timedelta
 import bentoml
 
 # ----------------------
@@ -37,13 +35,15 @@ scaler_y = MinMaxScaler()
 X_scaled = scaler_X.fit_transform(features)
 y_scaled = scaler_y.fit_transform(target)
 
+
 # Sequence creation
 def create_sequences(X, y, seq_len=24):
     Xs, ys = [], []
     for i in range(len(X) - seq_len):
-        Xs.append(X[i:(i + seq_len)])
+        Xs.append(X[i : (i + seq_len)])
         ys.append(y[i + seq_len])
     return np.array(Xs), np.array(ys)
+
 
 SEQ_LEN = 24
 X_seq, y_seq = create_sequences(X_scaled, y_scaled, SEQ_LEN)
@@ -65,7 +65,7 @@ lstm_params = {
     "dropout": 0.5,
     "recurrent_dropout": 0.1,
     "n_dense_units": 128,
-    "learning_rate": 0.004902441025672476
+    "learning_rate": 0.004902441025672476,
 }
 
 gru_params = {
@@ -75,10 +75,11 @@ gru_params = {
     "dropout": 0.5,
     "recurrent_dropout": 0.1,
     "n_dense_units": 32,
-    "learning_rate": 0.00808139279466219
+    "learning_rate": 0.00808139279466219,
 }
 
 models = {}
+
 
 # ----------------------
 # Step 4: Build and Train
@@ -86,9 +87,16 @@ models = {}
 def build_lstm_model(params, input_shape):
     model = Sequential()
     for _ in range(params["n_lstm_layers"]):
-        model.add(LSTM(params["n_units"], activation=params["activation"],
-                       dropout=params["dropout"], recurrent_dropout=params["recurrent_dropout"],
-                       return_sequences=False, input_shape=input_shape))
+        model.add(
+            LSTM(
+                params["n_units"],
+                activation=params["activation"],
+                dropout=params["dropout"],
+                recurrent_dropout=params["recurrent_dropout"],
+                return_sequences=False,
+                input_shape=input_shape,
+            )
+        )
     model.add(Dense(params["n_dense_units"], activation=params["activation"]))
     model.add(Dense(1))
     opt = Adam(learning_rate=params["learning_rate"])
@@ -99,9 +107,16 @@ def build_lstm_model(params, input_shape):
 def build_gru_model(params, input_shape):
     model = Sequential()
     for _ in range(params["n_gru_layers"]):
-        model.add(GRU(params["n_units"], activation=params["activation"],
-                      dropout=params["dropout"], recurrent_dropout=params["recurrent_dropout"],
-                      return_sequences=False, input_shape=input_shape))
+        model.add(
+            GRU(
+                params["n_units"],
+                activation=params["activation"],
+                dropout=params["dropout"],
+                recurrent_dropout=params["recurrent_dropout"],
+                return_sequences=False,
+                input_shape=input_shape,
+            )
+        )
     model.add(Dense(params["n_dense_units"], activation=params["activation"]))
     model.add(Dense(1))
     opt = Adam(learning_rate=params["learning_rate"])
@@ -112,29 +127,25 @@ def build_gru_model(params, input_shape):
 # Train both
 for name, (build_func, params) in {
     "Final_LSTM": (build_lstm_model, lstm_params),
-    "Final_GRU": (build_gru_model, gru_params)
+    "Final_GRU": (build_gru_model, gru_params),
 }.items():
     print(f"\n🔧 Training {name} model...")
     model = build_func(params, (SEQ_LEN, X_train.shape[2]))
     history = model.fit(
-        X_train, y_train,
+        X_train,
+        y_train,
         validation_data=(X_val, y_val),
         epochs=20,
         batch_size=32,
         verbose=1,
-        shuffle=False
+        shuffle=False,
     )
     y_pred = model.predict(X_val)
     y_true_inv = scaler_y.inverse_transform(y_val)
     y_pred_inv = scaler_y.inverse_transform(y_pred)
     mae = mean_absolute_error(y_true_inv, y_pred_inv)
     rmse = sqrt(mean_squared_error(y_true_inv, y_pred_inv))
-    models[name] = {
-        "model": model,
-        "mae": mae,
-        "rmse": rmse,
-        "params": params
-    }
+    models[name] = {"model": model, "mae": mae, "rmse": rmse, "params": params}
     print(f"{name} MAE: {mae:.4f}, RMSE: {rmse:.4f}")
 
 # ----------------------
@@ -149,7 +160,11 @@ print(f"MAE: {best_model['mae']:.4f}, RMSE: {best_model['rmse']:.4f}")
 # Step 6: Retrain Best Model on Full Dataset
 # ----------------------
 print("\nRetraining best model on full dataset...")
-full_model = build_lstm_model(lstm_params, (SEQ_LEN, X_train.shape[2])) if "LSTM" in best_model_name else build_gru_model(gru_params, (SEQ_LEN, X_train.shape[2]))
+full_model = (
+    build_lstm_model(lstm_params, (SEQ_LEN, X_train.shape[2]))
+    if "LSTM" in best_model_name
+    else build_gru_model(gru_params, (SEQ_LEN, X_train.shape[2]))
+)
 full_model.fit(X_seq, y_seq, epochs=20, batch_size=32, verbose=1, shuffle=False)
 
 # ----------------------
@@ -159,7 +174,7 @@ try:
     # Make the model inference-only by calling it once to build the graph
     dummy_input = np.zeros((1, SEQ_LEN, X_scaled.shape[1]), dtype=np.float32)
     _ = full_model.predict(dummy_input, verbose=0)
-    
+
     # Use keras.save_model instead of deprecated tensorflow.save_model
     saved_model = bentoml.keras.save_model(
         name="energy_model",
@@ -175,17 +190,18 @@ try:
             "features": list(features.columns),
             "target": target_col,
             "training_date": str(pd.Timestamp.now()),
-            "data_date_range": f"{df['datetime'].min()} to {df['datetime'].max()}"
-        }
+            "data_date_range": f"{df['datetime'].min()} to {df['datetime'].max()}",
+        },
     )
 
     print(f"   ✅ Model saved to BentoML: {saved_model.tag}")
     print(f"      Model name: {saved_model.tag.name}")
     print(f"      Version: {saved_model.tag.version}")
-    
+
 except Exception as e:
     print(f"   ❌ Failed to save model: {e}")
     import traceback
+
     traceback.print_exc()
     raise  # Re-raise to fail the workflow if model save fails
 
@@ -200,15 +216,26 @@ last_seq = X_scaled[-SEQ_LEN:]
 predictions = []
 
 for _ in range(PREDICT_HORIZON):
-    pred = full_model.predict(last_seq.reshape(1, SEQ_LEN, X_scaled.shape[1]), verbose=0)
+    pred = full_model.predict(
+        last_seq.reshape(1, SEQ_LEN, X_scaled.shape[1]), verbose=0
+    )
     predictions.append(pred[0, 0])
     new_row = np.append(last_seq[-1, 1:], pred[0, 0])
     last_seq = np.vstack((last_seq[1:], new_row))
 
 future_preds_inv = scaler_y.inverse_transform(np.array(predictions).reshape(-1, 1))
-future_dates = pd.date_range(start=df["datetime"].iloc[-1] + pd.Timedelta(hours=1), periods=PREDICT_HORIZON, freq="H")
+future_dates = pd.date_range(
+    start=df["datetime"].iloc[-1] + pd.Timedelta(hours=1),
+    periods=PREDICT_HORIZON,
+    freq="H",
+)
 
-output_df = pd.DataFrame({"datetime": future_dates, "predicted_retail_price_£_per_kWh": future_preds_inv.flatten()})
+output_df = pd.DataFrame(
+    {
+        "datetime": future_dates,
+        "predicted_retail_price_£_per_kWh": future_preds_inv.flatten(),
+    }
+)
 output_df.to_csv("data/predictions.csv", index=False)
 
 print("✅ retail_price per kWh predictions for next 3 days saved to predictions.csv")

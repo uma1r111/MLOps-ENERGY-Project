@@ -10,19 +10,11 @@ MLFLOW_TRACKING_URI = "http://54.226.40.241:8000/"
 EXPERIMENT_NAME = "UK Energy - ML Model Training "
 DATA_PATH = "../data/selected_features.csv"
 TARGET_COL = "retail_price_£_per_kWh"
-PREDICT_HORIZON = 72  # next 3 days (hourly)    
+PREDICT_HORIZON = 72  # next 3 days (hourly)
 ROLLING_WINDOW = 7 * 24  # 7-day rolling validation window
 
 # Fixed SARIMAX parameters
-best_params = {
-    "p": 0,
-    "d": 0,
-    "q": 0,
-    "P": 2,
-    "D": 0,
-    "Q": 2,
-    "seasonal_period": 6
-}
+best_params = {"p": 0, "d": 0, "q": 0, "P": 2, "D": 0, "Q": 2, "seasonal_period": 6}
 
 # ---------------- SETUP ----------------
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
@@ -36,6 +28,7 @@ df = df.sort_values("datetime").reset_index(drop=True)
 target = df[TARGET_COL]
 exog = df.drop(columns=["datetime", TARGET_COL])
 print(f"Loaded {len(df)} rows from {df['datetime'].min()} to {df['datetime'].max()}")
+
 
 # ---------------- WALK-FORWARD VALIDATION ----------------
 def walk_forward_validation(params):
@@ -58,7 +51,12 @@ def walk_forward_validation(params):
                 endog=train_y,
                 exog=train_exog,
                 order=(params["p"], params["d"], params["q"]),
-                seasonal_order=(params["P"], params["D"], params["Q"], params["seasonal_period"]),
+                seasonal_order=(
+                    params["P"],
+                    params["D"],
+                    params["Q"],
+                    params["seasonal_period"],
+                ),
                 enforce_stationarity=False,
                 enforce_invertibility=False,
             )
@@ -72,6 +70,7 @@ def walk_forward_validation(params):
 
     return np.nanmean(rmse_scores)
 
+
 # ---------------- FINAL MODEL TRAINING ----------------
 with mlflow.start_run(run_name="Final_SARIMAX_FixedParams"):
     mlflow.log_params(best_params)
@@ -80,7 +79,12 @@ with mlflow.start_run(run_name="Final_SARIMAX_FixedParams"):
         endog=target,
         exog=exog,
         order=(best_params["p"], best_params["d"], best_params["q"]),
-        seasonal_order=(best_params["P"], best_params["D"], best_params["Q"], best_params["seasonal_period"]),
+        seasonal_order=(
+            best_params["P"],
+            best_params["D"],
+            best_params["Q"],
+            best_params["seasonal_period"],
+        ),
         enforce_stationarity=False,
         enforce_invertibility=False,
     )
@@ -90,8 +94,11 @@ with mlflow.start_run(run_name="Final_SARIMAX_FixedParams"):
     # Forecast next 72 hours
     last_exog = exog.iloc[-PREDICT_HORIZON:].values
     preds = fitted_model.forecast(steps=PREDICT_HORIZON, exog=last_exog)
-    future_dates = pd.date_range(start=df["datetime"].iloc[-1] + pd.Timedelta(hours=1),
-                                 periods=PREDICT_HORIZON, freq="H")
+    future_dates = pd.date_range(
+        start=df["datetime"].iloc[-1] + pd.Timedelta(hours=1),
+        periods=PREDICT_HORIZON,
+        freq="H",
+    )
 
     future_df = pd.DataFrame({"datetime": future_dates, TARGET_COL: preds})
     future_df.to_csv("future_retail_price_predictions.csv", index=False)

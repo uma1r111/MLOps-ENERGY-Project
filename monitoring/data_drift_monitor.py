@@ -9,6 +9,7 @@ DATA_PATH = "data/selected_features.csv"
 PROMETHEUS_PUSHGATEWAY = ""
 JOB_NAME = "data_drift_monitor"
 
+
 def calculate_drift(reference_df, current_df, feature_cols):
     """
     Compute simple drift metrics between reference (monthly) and current (weekly) datasets.
@@ -31,12 +32,14 @@ def calculate_drift(reference_df, current_df, feature_cols):
         # Compute summary statistics
         mean_diff = abs(cur.mean() - ref.mean())
         std_diff = abs(cur.std() - ref.std())
-        corr = np.corrcoef(ref[:min(len(ref), len(cur))], cur[:min(len(ref), len(cur))])[0, 1]
+        corr = np.corrcoef(
+            ref[: min(len(ref), len(cur))], cur[: min(len(ref), len(cur))]
+        )[0, 1]
 
         drift_results[col] = {
             "mean_diff": mean_diff,
             "std_diff": std_diff,
-            "corr": corr
+            "corr": corr,
         }
 
     return drift_results
@@ -48,9 +51,11 @@ def push_metrics_to_prometheus(drift_results, registry):
     """
     for feature, metrics in drift_results.items():
         for metric_name, value in metrics.items():
-            g = Gauge(f"data_drift_{feature}_{metric_name}",
-                      f"Drift metric {metric_name} for feature {feature}",
-                      registry=registry)
+            g = Gauge(
+                f"data_drift_{feature}_{metric_name}",
+                f"Drift metric {metric_name} for feature {feature}",
+                registry=registry,
+            )
             g.set(float(value))
 
     # Push metrics
@@ -75,11 +80,17 @@ def monitor_drift():
     reference_start = current_start - timedelta(days=30)
     reference_end = current_start - timedelta(days=1)
 
-    reference_df = df[(df["datetime"] >= reference_start) & (df["datetime"] <= reference_end)]
+    reference_df = df[
+        (df["datetime"] >= reference_start) & (df["datetime"] <= reference_end)
+    ]
     current_df = df[df["datetime"] >= current_start]
 
-    print(f"Reference window: {reference_start.date()} → {reference_end.date()} ({len(reference_df)} rows)")
-    print(f"Current window: {current_start.date()} → {latest_date.date()} ({len(current_df)} rows)")
+    print(
+        f"Reference window: {reference_start.date()} → {reference_end.date()} ({len(reference_df)} rows)"
+    )
+    print(
+        f"Current window: {current_start.date()} → {latest_date.date()} ({len(current_df)} rows)"
+    )
 
     if reference_df.empty or current_df.empty:
         print("Not enough data for comparison — skipping drift check.")
@@ -93,7 +104,9 @@ def monitor_drift():
 
     # --- Log to console ---
     for feature, metrics in drift_results.items():
-        print(f"{feature} → mean_diff={metrics['mean_diff']:.4f}, std_diff={metrics['std_diff']:.4f}, corr={metrics['corr']:.4f}")
+        print(
+            f"{feature} → mean_diff={metrics['mean_diff']:.4f}, std_diff={metrics['std_diff']:.4f}, corr={metrics['corr']:.4f}"
+        )
 
     # --- Push metrics to Prometheus ---
     registry = CollectorRegistry()

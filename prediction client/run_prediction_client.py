@@ -1,4 +1,3 @@
-import os
 import requests
 import pandas as pd
 import numpy as np
@@ -12,7 +11,9 @@ try:
     df = df.sort_values("datetime")
 
     # Select all model features except datetime and target
-    feature_cols = [c for c in df.columns if c not in ["datetime", "retail_price_£_per_kWh"]]
+    feature_cols = [
+        c for c in df.columns if c not in ["datetime", "retail_price_£_per_kWh"]
+    ]
     last_72_data = df[feature_cols].tail(72).values.tolist()
 
     if len(last_72_data) < 72:
@@ -31,7 +32,7 @@ except Exception as e:
 input_payload = {
     "input_features": last_72_data,
     "steps": 72,
-    "last_timestamp": last_timestamp
+    "last_timestamp": last_timestamp,
 }
 
 print("\n🚀 Sending request to BentoML API...")
@@ -39,17 +40,19 @@ try:
     response = requests.post(
         url="http://localhost:3000/forecast",
         headers={"Content-Type": "application/json"},
-        data=json.dumps(input_payload)
+        data=json.dumps(input_payload),
     )
 
     if response.status_code == 200:
         result = response.json()
         print("✅ Prediction successful.")
 
-        pred_df = pd.DataFrame({
-            "datetime": result["forecast_dates"],
-            "predicted_retail_price_£_per_kWh": result["forecast"]
-        })
+        pred_df = pd.DataFrame(
+            {
+                "datetime": result["forecast_dates"],
+                "predicted_retail_price_£_per_kWh": result["forecast"],
+            }
+        )
         pred_df.to_csv("bentoml_forecast_output.csv", index=False)
         print("💾 Saved predictions to bentoml_forecast_output.csv")
 

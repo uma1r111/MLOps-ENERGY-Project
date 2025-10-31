@@ -26,7 +26,7 @@ params = {
     "dropout": 0.5,
     "recurrent_dropout": 0.1,
     "n_dense_units": 32,
-    "learning_rate": 0.00808139279466219
+    "learning_rate": 0.00808139279466219,
 }
 
 # --- Uncomment this block for Final_GRU_MultiOutput_Optuna ---
@@ -63,8 +63,8 @@ scaled_target = scaler_y.fit_transform(target)
 
 X, y = [], []
 for i in range(LOOKBACK, len(scaled_features) - PREDICT_HORIZON):
-    X.append(scaled_features[i - LOOKBACK:i])
-    y.append(scaled_target[i:i + PREDICT_HORIZON].flatten())
+    X.append(scaled_features[i - LOOKBACK : i])
+    y.append(scaled_target[i : i + PREDICT_HORIZON].flatten())
 
 X, y = np.array(X), np.array(y)
 split_idx = int(0.8 * len(X))
@@ -73,30 +73,37 @@ y_train, y_test = y[:split_idx], y[split_idx:]
 
 print(f"Training samples: {len(X_train)}, Testing samples: {len(X_test)}")
 
+
 # ---------------- MODEL BUILDING ----------------
 def build_gru_model(input_shape, params):
     model = Sequential()
     for i in range(params["n_gru_layers"]):
         return_sequences = i < params["n_gru_layers"] - 1
-        model.add(GRU(params["n_units"],
-                      activation=params["activation"],
-                      dropout=params["dropout"],
-                      recurrent_dropout=params["recurrent_dropout"],
-                      return_sequences=return_sequences,
-                      input_shape=input_shape if i == 0 else None))
+        model.add(
+            GRU(
+                params["n_units"],
+                activation=params["activation"],
+                dropout=params["dropout"],
+                recurrent_dropout=params["recurrent_dropout"],
+                return_sequences=return_sequences,
+                input_shape=input_shape if i == 0 else None,
+            )
+        )
     model.add(Dense(params["n_dense_units"], activation=params["activation"]))
     model.add(Dense(PREDICT_HORIZON))
     optimizer = Adam(learning_rate=params["learning_rate"])
     model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
     return model
 
+
 # ---------------- TRAINING & MLflow LOGGING ----------------
 with mlflow.start_run(run_name=run_name):
     mlflow.log_params(params)
 
     model = build_gru_model((LOOKBACK, X.shape[2]), params)
-    history = model.fit(X_train, y_train, epochs=20, batch_size=32,
-                        validation_split=0.2, verbose=1)
+    history = model.fit(
+        X_train, y_train, epochs=20, batch_size=32, validation_split=0.2, verbose=1
+    )
 
     preds = model.predict(X_test)
     preds_inv = scaler_y.inverse_transform(preds)

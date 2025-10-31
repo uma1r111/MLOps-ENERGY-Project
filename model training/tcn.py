@@ -8,7 +8,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input
-from tcn import TCN  
+from tcn import TCN
 
 # ---------------- CONFIG ----------------
 MLFLOW_TRACKING_URI = "http://54.226.40.241:8000/"
@@ -27,7 +27,7 @@ params = {
     "nb_stacks": 1,
     "activation": "relu",
     "dropout_rate": 0.30000000000000004,
-    "learning_rate": 0.0009243894680341854
+    "learning_rate": 0.0009243894680341854,
 }
 
 # --- Uncomment this block for Final_TCN_MultiOutput_Optuna ---
@@ -63,8 +63,8 @@ scaled_target = scaler_y.fit_transform(target)
 
 X, y = [], []
 for i in range(LOOKBACK, len(scaled_features) - PREDICT_HORIZON):
-    X.append(scaled_features[i - LOOKBACK:i])
-    y.append(scaled_target[i:i + PREDICT_HORIZON].flatten())
+    X.append(scaled_features[i - LOOKBACK : i])
+    y.append(scaled_target[i : i + PREDICT_HORIZON].flatten())
 
 X, y = np.array(X), np.array(y)
 split_idx = int(0.8 * len(X))
@@ -73,32 +73,37 @@ y_train, y_test = y[:split_idx], y[split_idx:]
 
 print(f"Training samples: {len(X_train)}, Testing samples: {len(X_test)}")
 
+
 # ---------------- MODEL BUILDING ----------------
 def build_tcn_model(input_shape, params):
-    model = Sequential([
-        Input(shape=input_shape),
-        TCN(
-            nb_filters=params["nb_filters"],
-            kernel_size=params["kernel_size"],
-            nb_stacks=params["nb_stacks"],
-            activation=params["activation"],
-            dropout_rate=params["dropout_rate"],
-            return_sequences=False
-        ),
-        Dense(64, activation=params["activation"]),
-        Dense(PREDICT_HORIZON)
-    ])
+    model = Sequential(
+        [
+            Input(shape=input_shape),
+            TCN(
+                nb_filters=params["nb_filters"],
+                kernel_size=params["kernel_size"],
+                nb_stacks=params["nb_stacks"],
+                activation=params["activation"],
+                dropout_rate=params["dropout_rate"],
+                return_sequences=False,
+            ),
+            Dense(64, activation=params["activation"]),
+            Dense(PREDICT_HORIZON),
+        ]
+    )
     optimizer = Adam(learning_rate=params["learning_rate"])
     model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
     return model
+
 
 # ---------------- TRAINING & MLflow LOGGING ----------------
 with mlflow.start_run(run_name=run_name):
     mlflow.log_params(params)
 
     model = build_tcn_model((LOOKBACK, X.shape[2]), params)
-    history = model.fit(X_train, y_train, epochs=20, batch_size=32,
-                        validation_split=0.2, verbose=1)
+    history = model.fit(
+        X_train, y_train, epochs=20, batch_size=32, validation_split=0.2, verbose=1
+    )
 
     preds = model.predict(X_test)
     preds_inv = scaler_y.inverse_transform(preds)
