@@ -31,7 +31,7 @@ services:
     networks:
       - mlops_net
 
- 
+
 
   monitoring:
     build:
@@ -54,7 +54,7 @@ services:
     container_name: prediction_client
     ports:
       - "8003:8003"
-   
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s

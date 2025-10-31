@@ -9,7 +9,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input
-from tcn import TCN  
+from tcn import TCN
 
 # ---------------- CONFIG ----------------
 MLFLOW_TRACKING_URI = "http://54.226.40.241:8000/"

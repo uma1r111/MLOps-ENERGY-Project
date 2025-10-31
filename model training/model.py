@@ -159,7 +159,7 @@ try:
     # Make the model inference-only by calling it once to build the graph
     dummy_input = np.zeros((1, SEQ_LEN, X_scaled.shape[1]), dtype=np.float32)
     _ = full_model.predict(dummy_input, verbose=0)
-    
+
     # Use keras.save_model instead of deprecated tensorflow.save_model
     saved_model = bentoml.keras.save_model(
         name="energy_model",
@@ -182,7 +182,7 @@ try:
     print(f"   ✅ Model saved to BentoML: {saved_model.tag}")
     print(f"      Model name: {saved_model.tag.name}")
     print(f"      Version: {saved_model.tag.version}")
-    
+
 except Exception as e:
     print(f"   ❌ Failed to save model: {e}")
     import traceback

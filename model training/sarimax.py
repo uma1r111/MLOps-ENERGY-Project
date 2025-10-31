@@ -11,7 +11,7 @@ MLFLOW_TRACKING_URI = "http://54.226.40.241:8000/"
 EXPERIMENT_NAME = "UK Energy - ML Model Training "
 DATA_PATH = "../data/selected_features.csv"
 TARGET_COL = "retail_price_£_per_kWh"
-PREDICT_HORIZON = 72  # next 3 days (hourly)    
+PREDICT_HORIZON = 72  # next 3 days (hourly)
 ROLLING_WINDOW = 7 * 24  # 7-day rolling validation window
 
 # Fixed SARIMAX parameters

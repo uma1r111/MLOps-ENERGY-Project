@@ -83,11 +83,11 @@ print("4️⃣ Computing lag and rolling features...")
 # Combine previous and new data for lag calculations
 if not prev_df.empty:
     # Get necessary columns from previous data
-    lag_cols = ['datetime', 'retail_price_£_per_kWh', 'carbon_intensity_actual', 
+    lag_cols = ['datetime', 'retail_price_£_per_kWh', 'carbon_intensity_actual',
                 'temperature_C', 'uk_gen_wind_%']
     combined_df = pd.concat([prev_df[lag_cols], new_df[lag_cols]])
 else:
-    combined_df = new_df[['datetime', 'retail_price_£_per_kWh', 'carbon_intensity_actual', 
+    combined_df = new_df[['datetime', 'retail_price_£_per_kWh', 'carbon_intensity_actual',
                            'temperature_C', 'uk_gen_wind_%']].copy()
 
 combined_df.sort_values("datetime", inplace=True)
@@ -131,27 +131,27 @@ print("5️⃣ Scaling features with StandardScaler...")
 scale_features = [
     # Weather features
     "temperature_C", "wind_speed_mps", "humidity_%", "cloud_cover_%", "o3",
-    
+
     # Carbon intensity
     "carbon_intensity_actual", "carbon_intensity_forecast",
-    
+
     # Generation mix
     "uk_gen_wind_%", "uk_gen_imports_%", "uk_gen_biomass_%",
     "uk_gen_nuclear_%", "uk_gen_gas_%",
-    
+
     # Log-transformed features
     "log_so2", "log_pm2_5", "log_co", "log_no2", "log_pm10",
     "log_solar_radiation_Wm2", "log_uk_gen_solar_%", "log_aqi_us",
-    
+
     # Engineered features
     "renewable_pct", "fossil_pct", "heating_demand", "cooling_demand",
     "carbon_per_price",
-    
+
     # Lag features
     "price_lag_1h", "price_lag_24h",
     "carbon_lag_1h", "carbon_lag_24h", "temp_lag_1h", "temp_lag_24h",
     "wind_lag_1h", "wind_lag_24h",
-    
+
     # Rolling features
     "price_rolling_24h_mean", "price_rolling_24h_std",
     "temp_rolling_24h_mean", "temp_rolling_24h_std",

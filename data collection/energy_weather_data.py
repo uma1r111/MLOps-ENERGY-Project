@@ -76,9 +76,9 @@ def fetch_air_quality(lat=51.5072, lon=-0.1276):
 def fetch_carbon_intensity():
     yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
     today = datetime.now(timezone.utc).date()
-    
+
     all_records = []
-    
+
     # Fetch yesterday
     url_yesterday = f"https://api.carbonintensity.org.uk/intensity/date/{yesterday}"
     try:
@@ -88,7 +88,7 @@ def fetch_carbon_intensity():
         all_records.extend(data)
     except:
         pass
-    
+
     # Fetch today (to get any late data from yesterday)
     url_today = f"https://api.carbonintensity.org.uk/intensity/date/{today}"
     try:
@@ -98,7 +98,7 @@ def fetch_carbon_intensity():
         all_records.extend(data)
     except:
         pass
-    
+
     records = [{
         "datetime": r.get("from"),
         "carbon_intensity_actual": r.get("intensity", {}).get("actual"),
@@ -108,10 +108,10 @@ def fetch_carbon_intensity():
 
     df_carbon = pd.DataFrame(records)
     df_carbon["datetime"] = pd.to_datetime(df_carbon["datetime"], utc=True)
-    
+
     # Filter to only yesterday's data
     df_carbon = df_carbon[df_carbon["datetime"].dt.date == yesterday]
-    
+
     return df_carbon
 
 
@@ -159,16 +159,16 @@ def fetch_octopus_prices():
     # Fetch last 3 days to ensure we get all yesterday's prices
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=3)
-    
+
     period_from = start_date.strftime("%Y-%m-%dT%H:%M:%SZ")
     period_to = end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
-    
+
     rates_url = (
         f"https://api.octopus.energy/v1/products/{product_code}/"
         f"electricity-tariffs/{tariff_code}/standard-unit-rates/"
         f"?period_from={period_from}&period_to={period_to}"
     )
-    
+
     response = requests.get(rates_url)
     response.raise_for_status()
     data = response.json().get("results", [])
@@ -176,11 +176,11 @@ def fetch_octopus_prices():
     df_prices = pd.DataFrame(data)
     df_prices["datetime"] = pd.to_datetime(df_prices["valid_from"], utc=True)
     df_prices["retail_price_£_per_kWh"] = df_prices["value_inc_vat"] / 100
-    
+
     # Filter to only yesterday's data
     yesterday = datetime.now(timezone.utc).date() - timedelta(days=1)
     df_prices = df_prices[df_prices["datetime"].dt.date == yesterday]
-    
+
     return df_prices[["datetime", "retail_price_£_per_kWh"]]
 
 
@@ -188,15 +188,15 @@ def fetch_octopus_prices():
 def merge_all_sources(weather_df, aqi_df, carbon_df, carbon_gen_df, prices_df):
     # Start with hourly weather data
     merged = weather_df.copy()
-    
+
     # Merge hourly data (exact matches)
     merged = merged.merge(aqi_df, on="datetime", how="outer")
     merged = merged.merge(carbon_df, on="datetime", how="outer")
-    
+
     # Sort before merge_asof
     merged = merged.sort_values("datetime").reset_index(drop=True)
     prices_df = prices_df.sort_values("datetime").reset_index(drop=True)
-    
+
     # (matches nearest half-hourly price to each hour) 9:30 -> 10:00, 10:30 --> 11:00 etc.
     merged = pd.merge_asof(
         merged,
@@ -235,7 +235,7 @@ def append_to_historical(new_data, save_dir="data", file_name="uk_energy_data.cs
         combined = combined.sort_values(["datetime", "datetime"]).drop_duplicates(
             subset=["datetime"], keep="last"
         )
-        
+
         combined = combined.sort_values("datetime").reset_index(drop=True)
 
         combined.to_csv(save_path, index=False)
@@ -258,19 +258,19 @@ def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"
         print("Fetching weather data...")
         weather_df = fetch_weather_data()
         print(f"   ✓ {len(weather_df)} weather records")
-        
+
         print("Fetching air quality data...")
         aqi_df = fetch_air_quality()
         print(f"   ✓ {len(aqi_df)} air quality records")
-        
+
         print("Fetching carbon intensity (last 2 days)...")
         carbon_df = fetch_carbon_intensity()
         print(f"   ✓ {len(carbon_df)} carbon intensity records")
-        
+
         print("Fetching generation mix...")
         carbon_gen_df = fetch_carbon_generation_mix()
         print(f"   ✓ Generation mix fetched")
-        
+
         print("Fetching electricity prices (last 3 days)...")
         prices_df = fetch_octopus_prices()
         print(f"   ✓ {len(prices_df)} price records")
@@ -280,33 +280,33 @@ def collect_and_append_yesterday(save_dir="data", file_name="uk_energy_data.csv"
 
         # Keep only full-hour data and ensure datetime format
         merged_df["datetime"] = pd.to_datetime(merged_df["datetime"], utc=True)
-        
+
         # Filter to only yesterday's data
         yesterday_date = datetime.now(timezone.utc).date() - timedelta(days=1)
         merged_df = merged_df[merged_df["datetime"].dt.date == yesterday_date]
-        
+
         # Keep only full hours (minute == 0)
         merged_df = merged_df[merged_df["datetime"].dt.minute == 0]
         merged_df = merged_df.sort_values("datetime").reset_index(drop=True)
 
         print(f"   ✓ {len(merged_df)} hourly records for {yesterday_date}")
-        
+
         # Check data completeness
         print("\nData Completeness Check:")
         missing_carbon = merged_df["carbon_intensity_actual"].isnull().sum()
         missing_prices = merged_df["retail_price_£_per_kWh"].isnull().sum()
         missing_weather = merged_df["temperature_C"].isnull().sum()
-        
+
         print(f"   Missing weather: {missing_weather}/{len(merged_df)}")
         print(f"   Missing carbon intensity: {missing_carbon}/{len(merged_df)}")
         print(f"   Missing prices: {missing_prices}/{len(merged_df)}")
-        
+
         if missing_prices > 0:
             print(f"\nPrice data missing for hours:")
             missing_price_hours = merged_df[merged_df["retail_price_£_per_kWh"].isnull()]["datetime"]
             for dt in missing_price_hours:
                 print(f"      {dt}")
-        
+
         if missing_carbon > 2 or missing_prices > 5:
             print(f"\nWARNING: High missing data count!")
             print(f"   This is expected if APIs haven't updated yet.")
@@ -334,7 +334,7 @@ if __name__ == "__main__":
         print("Saving monitoring metrics...")
 
         # Total APIs you call
-        total_apis = 5  
+        total_apis = 5
         success_count = 0
         total_response_time = 0.0
 
@@ -386,7 +386,7 @@ if __name__ == "__main__":
             "last_run": timestamp,
             "api_success_rate": api_success_rate,
             "avg_api_response_time": avg_response_time
-            
+
         })
 
         # Save metrics

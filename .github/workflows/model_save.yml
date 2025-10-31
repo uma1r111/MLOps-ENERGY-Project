@@ -72,12 +72,12 @@ jobs:
         id: get_model_tag
         run: |
           MODEL_TAG=$(bentoml models list --output=json | jq -r '.[] | select(.tag | startswith("energy_model:")) | .tag' | sort | tail -n1)
-          
+
           if [ -z "$MODEL_TAG" ]; then
             echo "❌ No energy_model found in BentoML store!"
             exit 1
           fi
-          
+
           echo "MODEL_TAG=$MODEL_TAG" >> $GITHUB_ENV
           echo "Found model tag: $MODEL_TAG"
 
@@ -99,7 +99,7 @@ jobs:
 
           ACTUAL_FILENAME="${EXPORT_BASE}.bentomodel"
           echo "ACTUAL_FILENAME=$ACTUAL_FILENAME" >> $GITHUB_ENV
-          
+
       # ✅ Upload model archive to S3
       - name: Upload Energy model to S3
         env:
@@ -120,7 +120,7 @@ jobs:
           echo "Listing all Energy model files in S3..."
           files=$(aws s3 ls s3://s3-bucket-energy/models/ | grep energy_model_ | sort)
           total_files=$(echo "$files" | wc -l)
-          
+
           echo "Total model files: $total_files"
 
           if [ "$total_files" -le 3 ]; then
