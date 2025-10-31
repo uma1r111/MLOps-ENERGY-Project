@@ -68,6 +68,20 @@ Our ML pipeline utilizes several core AWS services to store artifacts, run model
    - Stores training data and model artifacts
    - Enables versioned storage for reproducibility
    - Facilitates team collaboration
+   
+   Bucket Structure:
+   ```
+   energy-forecasting/
+   ├── data/
+   │   ├── raw/               # Original UK energy data
+   │   ├── processed/         # Engineered features
+   │   └── predictions/       # Model outputs
+   ├── models/
+   │   ├── lstm/             # LSTM model artifacts
+   │   ├── gru/              # GRU model artifacts
+   │   └── tcn/              # TCN model artifacts
+   └── metadata/             # Training metrics and configs
+   ```
 
 2. **AWS EC2 for Model Serving**
    ![EC2 Instances](images/EC2_instance.png)
@@ -75,13 +89,87 @@ Our ML pipeline utilizes several core AWS services to store artifacts, run model
    - Auto-scaling group for handling load variations
    - Continuous monitoring via CloudWatch
 
+   Instance Configuration:
+   - Type: `t3.large` (2 vCPU, 8GB RAM)
+   - AMI: Ubuntu 22.04 LTS
+   - Security Group: Allows ports 80, 443, 3000 (BentoML)
+
 3. **AWS Lambda for Serverless Tasks**
    ![AWS Lambda](images/Lambda.png)
-   - Handles event-driven jobs (e.g., scheduled data pulls, lightweight feature transforms, asynchronous post-processing)
-   - Integrates with S3 events and CloudWatch Events (EventBridge)
-   - Useful for cost-efficient, short-running tasks and glue logic between services
+   - Handles event-driven jobs
+   - Integrates with S3 events and CloudWatch Events
+   - Cost-efficient for short-running tasks
 
-If you need me to add sample deployment snippets (CloudFormation/Terraform) or the actual Lambda function code into the repo, tell me where you'd like those files placed (e.g., `infra/` or `scripts/`).
+### Reproducing the Setup
+
+1. **Prerequisites**
+   ```bash
+   # Install AWS CLI
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+   unzip awscliv2.zip
+   sudo ./aws/install
+
+   # Configure AWS credentials
+   aws configure
+   ```
+
+2. **S3 Bucket Creation**
+   ```bash
+   aws s3 mb s3://energy-forecasting
+   aws s3api put-bucket-versioning --bucket energy-forecasting --versioning-configuration Status=Enabled
+   ```
+
+3. **EC2 Setup**
+   ```bash
+   # Deploy EC2 instance using provided CloudFormation template
+   aws cloudformation create-stack \
+       --stack-name energy-forecast-stack \
+       --template-file infra/ec2-stack.yaml \
+       --parameters ParameterKey=EnvironmentName,ParameterValue=production
+   ```
+
+4. **BentoML Deployment**
+   ```bash
+   # Build and push BentoML service
+   bentoml build
+   bentoml containerize energy_forecast:latest
+   
+   # Deploy to EC2 (using provisioned instance)
+   ./scripts/deploy_to_ec2.sh
+   ```
+
+### ML Workflow Integration
+
+Our ML workflow interacts with AWS services in the following ways:
+
+1. **Data Pipeline**
+   - Historical data is pulled from OpenMateo API via Lambda (scheduled daily)
+   - Raw data is stored in S3 (`data/raw/`)
+   - Feature engineering triggered by S3 event on new data arrival
+   - Processed features saved back to S3 (`data/processed/`)
+
+2. **Training Pipeline**
+   - Training jobs triggered by CloudWatch Events (weekly schedule)
+   - Reads processed data from S3
+   - Logs metrics to CloudWatch
+   - Saves model artifacts to S3 (`models/`)
+   - Updates model registry in MLflow
+
+3. **Inference Pipeline**
+   - BentoML service on EC2 loads latest model from S3
+   - Real-time predictions via REST API
+   - Batch predictions stored in S3 (`data/predictions/`)
+   - Performance metrics logged to CloudWatch
+
+4. **Monitoring**
+   - CloudWatch dashboards track:
+     - Model performance metrics
+     - API latency and throughput
+     - Resource utilization
+   - Alerts configured for:
+     - Model drift detection
+     - Error rate thresholds
+     - Resource constraints
 ### Service Architecture
 
 ```mermaid
