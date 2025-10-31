@@ -257,6 +257,29 @@ The service is automatically packaged with:
 - Enables reproducible data pipeline
 - Efficient large file handling with S3 backend
 
+
+
+
+### Infrastructure as Code (IaC) & Local Object Storage
+
+- **CloudFormation IaC Sample:**
+   - The file [`infra/mlops-energy-stack.yaml`](infra/mlops-energy-stack.yaml) is a ready-to-use AWS CloudFormation template tailored for this project.
+   - It provisions:
+     - An S3 bucket for model and artifact storage (with versioning and public access blocked)
+     - An IAM role for Lambda execution with S3 access permissions
+     - A Lambda function (Python 3.11) for event-driven ML tasks, conditionally created based on the presence of a model package
+   - All resources are named and parameterized for the MLOps Energy Project, supporting secure, automated, and reproducible AWS infrastructure setup.
+   - Place your model package in S3 or set the `ModelPackageExists` parameter as needed to control Lambda deployment.
+
+**How to deploy:**
+```bash
+aws cloudformation create-stack \
+  --stack-name mlops-energy-stack \
+  --template-body file://infra/mlops-energy-stack.yaml \
+  --parameters ParameterKey=ModelPackageExists,ParameterValue=false
+```
+This command provisions the S3 bucket, IAM role, and (optionally) Lambda function as defined in the template.
+
 ### Docker Compose
 
 Our project leverages Docker Compose with environment profiles for efficient microservices orchestration:
