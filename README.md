@@ -1,8 +1,10 @@
 # MLOps Energy Forecasting System 🔋
 
-A production-ready MLOps pipeline for accurate UK energy demand forecasting using advanced time series models and real-time monitoring.
+UK energy demand forecasting system with real-time monitoring and automated ML pipeline deployment.
 
 ## Architecture Diagram
+
+*Data Flow and System Architecture*
 
 ```mermaid
 graph LR
@@ -47,161 +49,131 @@ make dev
 |--------|-------------|
 | `make dev` | Set up development environment, install dependencies |
 | `make test` | Run unit tests with pytest |
-| `make docker` | Build Docker image for production |
-| `make run` | Run the model serving API locally |
+| `make docker` | Build BentoML service Docker image |
+| `make serve` | Serve BentoML model locally |
+| `make bentoml-build` | Build model as deployable Bento |
 | `make monitor` | Start monitoring stack (Prometheus + Grafana) |
 | `make lint` | Run code quality checks (ruff, black) |
 | `make clean` | Clean build artifacts and cache |
 
-## Project Components
+## ML Workflow Monitoring
 
-1. **Data Pipeline**
-   - Historical UK energy demand data collection
-   - Weather data integration
-   - Feature engineering and selection
-   - Data version control with DVC
+### MLflow Tracking
+MLflow tracking server: `http://localhost:5000`
+- Latest model version: `v1.0.0` (registered in MLflow)
+- Model Registry URI: `models:/energy_forecast/production`
 
-2. **Model Training**
-   - Multiple model architectures (LSTM, GRU, TCN, SARIMAX)
-   - Hyperparameter optimization
-   - MLflow experiment tracking
-   - Model versioning and registry
+![MLflow Experiments](images/mlflow_dashboard.png)
 
-3. **Model Serving**
-   - BentoML service for model deployment
-   - RESTful API endpoints
-   - Batch and real-time predictions
-   - Health monitoring endpoints
+### Data Drift Monitoring
+Evidently AI Dashboard for data drift monitoring: `http://localhost:7000`
 
-4. **Monitoring & Observability**
-   - Data drift detection with Evidently AI
-   - Custom Prometheus metrics exporter
-   - Grafana dashboards for visualization
-   - Model performance monitoring
+![Data Drift Dashboard](images/evidently_dashboard.png)
 
-## MLflow Tracking
+### Metrics Monitoring
+Prometheus + Grafana metrics dashboard: `http://localhost:3100`
 
-The MLflow tracking server is hosted locally and can be accessed at:
-```
-http://localhost:5000
-```
+![Grafana Metrics](images/grafana_metrics.png)
 
-Latest model version: `v1.0.0`
-Model Registry URI: `models:/energy_forecast/production`
+Key metrics being tracked:
+- **API Performance**
+  - Total API endpoints: 3
+  - API success rate: 100%
+  - Average response time: 0.584s
+  
+- **Model Performance**
+  - Current best model: Final_GRU
+  - RMSE: 0.0713
+  - MAE: 0.0489
+  
+- **System Metrics**
+  - Training duration
+  - Last execution timestamp
+  - Model serving status
 
-## Evidently AI Dashboard
+## Cloud Deployment
 
-Monitor data drift and model performance:
-```
-http://localhost:7000
-```
+### AWS Services Integration
 
-## API Documentation
+Our ML pipeline utilizes two main AWS services:
 
-API documentation is available at:
-```
-http://localhost:3000/docs
-```
+1. **AWS S3 for Data and Model Storage**
+   ![S3 Bucket Structure](images/s3_storage.png)
+   - Stores training data and model artifacts
+   - Enables versioned storage for reproducibility
+   - Facilitates team collaboration
 
-### Example API Usage
+2. **AWS EC2 for Model Serving**
+   ![EC2 Instances](images/ec2_deployment.png)
+   - Hosts the inference API
+   - Auto-scaling group for handling load variations
+   - Continuous monitoring via CloudWatch
 
+### Service Architecture
+![Cloud Architecture](images/cloud_architecture.png)
+
+## Model Serving & API Documentation
+
+BentoML Service endpoint available at: `http://localhost:3000`
+
+![BentoML Service UI](images/bentoml_service.png)
+
+Service includes:
+- Automatic OpenAPI documentation
+- Built-in model monitoring
+- Request logging and metrics
+- Docker/Kubernetes deployment ready
+
+Example usage:
 ```bash
+# Using bentoml CLI
+bentoml serve service:svc --production
+
+# API request
 curl -X POST "http://localhost:3000/predict" \
      -H "Content-Type: application/json" \
      -d '{"timestamp": "2025-10-31T12:00:00Z"}'
 ```
 
-Response Schema:
-```json
-{
-  "prediction": {
-    "energy_demand": 35420.5,
-    "confidence_interval": [34800.2, 36100.8]
-  },
-  "timestamp": "2025-10-31T12:00:00Z"
-}
+### Model Deployment
+```bash
+# Build model as deployable Bento
+bentoml build
+
+# Containerize the Bento
+bentoml containerize energy_forecast:latest
 ```
 
-## Cloud Deployment
-
-### Services Used
-
-1. **AWS S3**
-   - Storage for training data and model artifacts
-   - Bucket: `energy-forecast-artifacts`
-   - Versioned storage for reproducibility
-
-2. **AWS EC2**
-   - Hosts the inference API
-   - Auto-scaling group for handling load
-   - Instance type: `t3.medium`
-
-### Setup Instructions
-
-1. Configure AWS credentials:
-   ```bash
-   aws configure
-   ```
-
-2. Deploy infrastructure:
-   ```bash
-   make deploy-cloud
-   ```
-
-3. Update environment variables:
-   ```bash
-   export AWS_BUCKET_NAME=energy-forecast-artifacts
-   export AWS_REGION=us-east-1
-   ```
-
-### ML Workflow Integration
-
-- Training data is automatically synced to S3
-- Models are versioned and stored in S3
-- EC2 instances pull latest model on startup
-- CloudWatch monitors API health and metrics
+The service is automatically packaged with:
+- Model artifacts
+- Python dependencies
+- API configuration
+- Environment settings
 
 ## FAQ
 
 ### Common Build Issues
 
-1. **Docker build fails with memory error**
-   - Increase Docker memory limit in settings
-   - Minimum recommended: 4GB
+1. **Docker build fails**
+   - Increase Docker memory limit (recommended: 4GB)
+   - Run `docker system prune` to clear space
+   - Check Docker daemon is running
 
-2. **MLflow connection error**
-   - Ensure MLflow server is running: `make mlflow-server`
-   - Check default port (5000) is not in use
+2. **Package installation errors**
+   - Update pip: `python -m pip install --upgrade pip`
+   - Install build tools: `apt-get install build-essential` (Linux)
+   - Use Python 3.11 as specified in Dockerfile
 
-### Platform-Specific Setup
+### Platform Setup
 
 #### Windows
-- Install Make: `choco install make`
-- Use WSL2 for Docker
-- Set PYTHONPATH manually if needed
+1. Install WSL2: `wsl --install`
+2. Install Docker Desktop with WSL2 backend
+3. Install Make: `choco install make`
+4. Install Python 3.11
 
 #### MacOS
-- Install dependencies: `brew install make docker`
-- Increase Docker memory (Preferences → Resources)
-
-## Pre-commit Hooks
-
-Run before committing:
-```bash
-pre-commit run --all-files
-```
-
-Installed hooks:
-- trailing-whitespace
-- end-of-file-fix
-- detect-secrets
-
-## License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
-
-## Security
-
-- Regular dependency scans with `pip-audit`
-- No critical CVEs in dependencies
-- See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community guidelines
+1. Install Homebrew: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+2. Install dependencies: `brew install make docker python@3.11`
+3. Start Docker Desktop
+4. Run: `brew link python@3.11`
