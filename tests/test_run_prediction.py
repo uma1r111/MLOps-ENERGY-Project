@@ -6,6 +6,7 @@ from unittest.mock import patch
 # Import the client module you want to test
 import prediction_client.run_prediction_client as rpc
 
+
 @pytest.fixture
 def mock_input_payload():
     return {
@@ -19,6 +20,7 @@ def mock_input_payload():
 @pytest.fixture
 def patch_predict():
     with patch("prediction_client.run_prediction_client.predict") as mock_fn:
+
         def side_effect(payload):
             steps = payload.get("steps", 5)
             last_ts = datetime.strptime(payload["last_timestamp"], "%Y-%m-%d %H:%M:%S")

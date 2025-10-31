@@ -16,7 +16,9 @@ if os.path.exists("data/selected_features.csv"):
     df = pd.read_csv("data/selected_features.csv")
     df["datetime"] = pd.to_datetime(df["datetime"])
     df = df.sort_values("datetime")
-    feature_cols = [c for c in df.columns if c not in ["datetime", "retail_price_£_per_kWh"]]
+    feature_cols = [
+        c for c in df.columns if c not in ["datetime", "retail_price_£_per_kWh"]
+    ]
     last_72_data = df[feature_cols].tail(72).values.tolist()
     last_timestamp = df["datetime"].iloc[-1].strftime("%Y-%m-%d %H:%M:%S")
 else:
@@ -35,13 +37,17 @@ input_payload = {
     "last_timestamp": last_timestamp,
 }
 
+
 # --- PREDICTION FUNCTION ---
 def predict(payload):
     if USE_MOCK:
         # Mock response
         forecast_values = np.random.rand(payload["steps"]).tolist()
         forecast_dates = [
-            (datetime.strptime(payload["last_timestamp"], "%Y-%m-%d %H:%M:%S") + timedelta(hours=i+1)).strftime("%Y-%m-%d %H:%M:%S")
+            (
+                datetime.strptime(payload["last_timestamp"], "%Y-%m-%d %H:%M:%S")
+                + timedelta(hours=i + 1)
+            ).strftime("%Y-%m-%d %H:%M:%S")
             for i in range(payload["steps"])
         ]
         return {"forecast": forecast_values, "forecast_dates": forecast_dates}
@@ -55,6 +61,7 @@ def predict(payload):
         )
         response.raise_for_status()
         return response.json()
+
 
 # --- RUN PREDICTION ---
 try:

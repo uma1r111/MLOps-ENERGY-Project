@@ -116,12 +116,14 @@ def fetch_carbon_intensity():
         if not r.get("from"):
             continue
         intensity = r.get("intensity") or {}
-        records.append({
-            "datetime": r.get("from"),
-            "carbon_intensity_actual": intensity.get("actual"),
-            "carbon_intensity_forecast": intensity.get("forecast"),
-            "carbon_index": intensity.get("index"),
-        })
+        records.append(
+            {
+                "datetime": r.get("from"),
+                "carbon_intensity_actual": intensity.get("actual"),
+                "carbon_intensity_forecast": intensity.get("forecast"),
+                "carbon_index": intensity.get("index"),
+            }
+        )
 
     df_carbon = pd.DataFrame(records)
     df_carbon["datetime"] = pd.to_datetime(

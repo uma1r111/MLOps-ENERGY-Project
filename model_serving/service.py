@@ -19,6 +19,7 @@ if os.getenv("TEST_MODE", "0") == "1":
     class MockModelRunner:
         def run(self, data):
             import numpy as np
+
             return np.random.rand(1, 1)
 
     model_runner = MockModelRunner()

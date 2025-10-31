@@ -13,6 +13,7 @@ sys.modules["keras"] = MagicMock()
 
 # Import after mocking
 
+
 # ---------- FIXTURES ----------
 @pytest.fixture
 def mock_input_data():
