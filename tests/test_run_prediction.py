@@ -1,75 +1,73 @@
 import pytest
-import json
-import pandas as pd
 import numpy as np
+from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
-import sys
-import os
-import requests
 
-# Add project root to Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+# Import the client module you want to test
 import prediction_client.run_prediction_client as rpc
 
-
 @pytest.fixture
-def mock_input_data(tmp_path):
-    """Create a temporary CSV file with sample energy data."""
-    df = pd.DataFrame({
-        "datetime": pd.date_range("2025-01-01", periods=80, freq="H"),
-        "feature1": np.random.rand(80),
-        "feature2": np.random.rand(80),
-        "retail_price_£_per_kWh": np.random.rand(80)
-    })
-    file_path = tmp_path / "selected_features.csv"
-    df.to_csv(file_path, index=False)
-    return str(file_path)
-
-
-@patch("requests.post")
-def test_prediction_request(mock_post, mock_input_data, monkeypatch):
-    """✅ Test that the payload is correctly prepared and API response handled properly."""
-
-    # ---- Mock API response from BentoML ----
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "forecast": [0.25, 0.27, 0.30],
-        "forecast_dates": [
-            "2025-01-04 01:00:00",
-            "2025-01-04 02:00:00",
-            "2025-01-04 03:00:00"
-        ]
+def mock_input_payload():
+    return {
+        "input_features": np.random.rand(72, 10).tolist(),
+        "steps": 5,
+        "last_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    mock_post.return_value = mock_response
 
-    # ---- Monkeypatch to use local test data instead of live dependencies ----
-    monkeypatch.setattr(rpc, "requests", requests)
-    monkeypatch.setattr(rpc.pd, "read_csv", lambda _: pd.read_csv(mock_input_data))
 
-    # Prevent sys.exit(1) from stopping pytest
-    with patch("builtins.exit", lambda _: None):
-        if hasattr(rpc, "main"):
-            rpc.main()
-        else:
-            # Fallback: run top-level logic if not wrapped in a main() function
-            if "__main__" in dir(rpc):
-                exec(open(rpc.__file__).read(), {"__name__": "__main__"})
+# ----------------- MOCK PREDICT FUNCTION -----------------
+@pytest.fixture
+def patch_predict():
+    with patch("prediction_client.run_prediction_client.predict") as mock_fn:
+        def side_effect(payload):
+            steps = payload.get("steps", 5)
+            last_ts = datetime.strptime(payload["last_timestamp"], "%Y-%m-%d %H:%M:%S")
+            forecast = np.random.rand(steps).tolist()
+            forecast_dates = [
+                (last_ts + timedelta(hours=i + 1)).strftime("%Y-%m-%d %H:%M:%S")
+                for i in range(steps)
+            ]
+            return {"forecast": forecast, "forecast_dates": forecast_dates}
 
-    # ---- Validation: ensure API was called once ----
-    mock_post.assert_called_once()
-    _, called_kwargs = mock_post.call_args
+        mock_fn.side_effect = side_effect
+        yield mock_fn
 
-    # ---- Validate payload ----
-    payload = json.loads(called_kwargs["data"])
-    assert "input_features" in payload
-    assert isinstance(payload["input_features"], list)
-    assert len(payload["input_features"]) == 72  # Expecting last 72 hours for forecast
-    assert payload.get("steps") == 72
 
-    # ---- Validate mock response handling ----
-    result = mock_post.return_value.json()
+# ----------------- TESTS -----------------
+def test_predict_returns_expected_dict(patch_predict, mock_input_payload):
+    result = rpc.predict(mock_input_payload)
+    assert isinstance(result, dict)
     assert "forecast" in result
     assert "forecast_dates" in result
-    assert len(result["forecast"]) == 3
+    assert len(result["forecast"]) == mock_input_payload["steps"]
+    assert len(result["forecast_dates"]) == mock_input_payload["steps"]
+    assert all(isinstance(x, float) for x in result["forecast"])
+
+
+def test_forecast_dataframe_creation(patch_predict, mock_input_payload, tmp_path):
+    result = rpc.predict(mock_input_payload)
+
+    # Simulate saving CSV as in the main script
+    pred_df = rpc.pd.DataFrame(
+        {
+            "datetime": result["forecast_dates"],
+            "predicted_retail_price_£_per_kWh": result["forecast"],
+        }
+    )
+    file_path = tmp_path / "output.csv"
+    pred_df.to_csv(file_path, index=False)
+
+    # Check CSV exists and has correct length
+    assert file_path.exists()
+    df_loaded = rpc.pd.read_csv(file_path)
+    assert len(df_loaded) == mock_input_payload["steps"]
+    assert "datetime" in df_loaded.columns
+    assert "predicted_retail_price_£_per_kWh" in df_loaded.columns
+
+
+def test_predict_raises_exception_for_missing_timestamp():
+    payload = {"input_features": np.random.rand(24, 10).tolist(), "steps": 5}
+    with patch("prediction_client.run_prediction_client.predict") as mock_fn:
+        mock_fn.side_effect = ValueError("Missing last_timestamp")
+        with pytest.raises(ValueError):
+            mock_fn(payload)
