@@ -68,7 +68,7 @@ MLflow tracking server: `http://localhost:5000`
 ### Data Drift Monitoring
 Evidently AI Dashboard for data drift monitoring: `http://localhost:7000`
 
-![Data Drift Dashboard](images/evidently_dashboard.png)
+![Data Drift Dashboard](images/evidently_dashboard.jpg)
 
 ### Metrics Monitoring
 Prometheus + Grafana metrics dashboard: `http://localhost:3100`
