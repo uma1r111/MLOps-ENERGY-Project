@@ -1,4 +1,4 @@
-# MLOps Energy Forecasting System 🔋
+# MLOps Energy Forecasting System - Milestone 1🔋
 
 UK energy demand forecasting system with real-time monitoring and automated ML pipeline deployment.
 
@@ -57,73 +57,59 @@ Evidently AI Dashboard for data drift monitoring: `http://localhost:7000`
 
 ![Data Drift Dashboard](images/evidently_dashboard.jpg)
 
-### Metrics Monitoring
-Prometheus + Grafana metrics dashboard: `http://localhost:3100`
-
-![Grafana Metrics](images/grafana_metrics.png)
-
-Key metrics being tracked:
-- **API Performance**
-  - Total API endpoints: 3
-  - API success rate: 100%
-  - Average response time: 0.584s
-  
-- **Model Performance**
-  - Current best model: Final_GRU
-  - RMSE: 0.0713
-  - MAE: 0.0489
-  
-- **System Metrics**
-  - Training duration
-  - Last execution timestamp
-  - Model serving status
-
 ## Cloud Deployment
 
 ### AWS Services Integration
 
-Our ML pipeline utilizes two main AWS services:
+Our ML pipeline utilizes several core AWS services to store artifacts, run model serving, and handle event-driven tasks:
 
 1. **AWS S3 for Data and Model Storage**
-   ![S3 Bucket Structure](images/s3_storage.png)
+   ![S3 Bucket Structure](images/S3_storage.png)
    - Stores training data and model artifacts
    - Enables versioned storage for reproducibility
    - Facilitates team collaboration
 
 2. **AWS EC2 for Model Serving**
-   ![EC2 Instances](images/ec2_deployment.png)
-   - Hosts the inference API
+   ![EC2 Instances](images/EC2_deployment.png)
+   - Hosts the inference API (BentoML) for high-throughput, persistent serving
    - Auto-scaling group for handling load variations
    - Continuous monitoring via CloudWatch
 
+3. **AWS Lambda for Serverless Tasks**
+   ![AWS Lambda](images/lambda.png)
+   - Handles event-driven jobs (e.g., scheduled data pulls, lightweight feature transforms, asynchronous post-processing)
+   - Integrates with S3 events and CloudWatch Events (EventBridge)
+   - Useful for cost-efficient, short-running tasks and glue logic between services
+
+If you need me to add sample deployment snippets (CloudFormation/Terraform) or the actual Lambda function code into the repo, tell me where you'd like those files placed (e.g., `infra/` or `scripts/`).
 ### Service Architecture
 
 ```mermaid
 graph TB
-    subgraph AWS VPC["AWS VPC 🌐"]
+    subgraph VPC
         subgraph Public Subnet
-            ALB["AWS ALB 🔄<br/>Application Load Balancer"]
-            EC2["AWS EC2 🖥️<br/>BentoML Service"]
+            ALB[Application Load Balancer]
+            EC2[EC2 Instance with BentoML Service]
         end
         
         subgraph Private Subnet
-            MLflow["MLflow Server 📊"]
+            MLflow[MLflow Server]
         end
     end
     
-    subgraph Storage["AWS Storage ☁️"]
-        S3["AWS S3 📦<br/>Buckets"]
-        S3_Data["Training Data 📊"]
-        S3_Models["Model Artifacts 🤖"]
+    subgraph Storage
+        S3[(S3 Buckets)]
+        S3_Data[(Training Data)]
+        S3_Models[(Model Artifacts)]
     end
     
-    subgraph Monitoring["Monitoring Stack 📈"]
-        CW["AWS CloudWatch 📊"]
-        Prom["Prometheus ⚡"]
-        Graf["Grafana 📊"]
+    subgraph Monitoring
+        CW[CloudWatch]
+        Prom[Prometheus]
+        Graf[Grafana]
     end
     
-    Client(("Client 👥"))-->ALB
+    Client-->ALB
     ALB-->EC2
     EC2-->S3
     EC2-->MLflow
@@ -131,24 +117,7 @@ graph TB
     MLflow-->S3_Models
     EC2-->Prom
     Prom-->Graf
-
-    style AWS VPC fill:#FF9900,color:#000
-    style Storage fill:#FF9900,color:#000
-    style Monitoring fill:#232F3E,color:#fff
-    style EC2 fill:#FF9900,color:#000
-    style S3 fill:#FF9900,color:#000
-    style CW fill:#FF9900,color:#000
-    style ALB fill:#FF9900,color:#000
 ```
-
-Note: 
-- 🌐 AWS VPC
-- 🖥️ EC2 Instances
-- 📦 S3 Storage
-- 📊 CloudWatch
-- 🔄 Load Balancer
-- ⚡ Prometheus
-- 📈 Grafana Dashboard
 
 ## Model Serving & API Documentation
 
@@ -188,6 +157,18 @@ The service is automatically packaged with:
 - API configuration
 - Environment settings
 
+## Bonus Features Implemented
+
+### Data Version Control (DVC)
+- DVC integrated for dataset versioning
+- Tracking multiple data files:
+  - `uk_energy_data.csv`
+  - `engineered_features.csv`
+  - `selected_features.csv`
+  - `predictions.csv`
+- Enables reproducible data pipeline
+- Efficient large file handling with S3 backend
+
 ## FAQ
 
 ### Common Build Issues
@@ -215,3 +196,4 @@ The service is automatically packaged with:
 2. Install dependencies: `brew install make docker python@3.11`
 3. Start Docker Desktop
 4. Run: `brew link python@3.11`
+
