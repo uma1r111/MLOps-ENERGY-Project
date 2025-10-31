@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFormation stack for MLOps Energy Project - creates S3 bucket, IAM role, and Lambda function.
+
+Parameters:
+  ModelPackageExists:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Set to 'true' if model_package.zip already exists in S3
+
+Resources:
+  # ------------------------
+  # S3 bucket for model storage
+  # ------------------------
+  ModelS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'mlops-energy-models-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ------------------------
+  # IAM Role for Lambda execution
+  # ------------------------
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'lambda-execution-role-${AWS::AccountId}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !GetAtt ModelS3Bucket.Arn
+                  - !Sub '${ModelS3Bucket.Arn}/*'
+
+  # ------------------------
+  # Lambda Function (conditional on model package existence)
+  # ------------------------
+  ModelLambda:
+    Type: AWS::Lambda::Function
+    Condition: CreateLambda
+    DependsOn:
+      - ModelS3Bucket
+      - LambdaExecutionRole
+    Properties:
+      FunctionName: !Sub 'MLOpsModelLambda-${AWS::AccountId}'
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Placeholder Lambda - upload model package to update')
+              }
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 512
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref ModelS3Bucket
+          AWS_REGION: !Ref 'AWS::Region'
+
+Conditions:
+  CreateLambda: !Equals [!Ref ModelPackageExists, 'true']
+
+Outputs:
+  BucketName:
+    Description: S3 bucket for models
+    Value: !Ref ModelS3Bucket
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketName'
+
+  BucketArn:
+    Description: S3 bucket ARN
+    Value: !GetAtt ModelS3Bucket.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketArn'
+
+  LambdaRoleArn:
+    Description: IAM Role ARN for Lambda
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaRoleArn'
+
+  LambdaFunctionName:
+    Description: Deployed Lambda function name
+    Value: !If [CreateLambda, !Ref ModelLambda, 'Not Created - Set ModelPackageExists=true']
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunctionName'
