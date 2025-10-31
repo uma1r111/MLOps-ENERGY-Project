@@ -110,17 +110,18 @@ def fetch_carbon_intensity():
             ]
         )
 
-    # Convert valid records
-    records = [
-        {
+    # Convert valid records with safe handling for missing/None intensity
+    records = []
+    for r in all_records:
+        if not r.get("from"):
+            continue
+        intensity = r.get("intensity") or {}
+        records.append({
             "datetime": r.get("from"),
-            "carbon_intensity_actual": r.get("intensity", {}).get("actual"),
-            "carbon_intensity_forecast": r.get("intensity", {}).get("forecast"),
-            "carbon_index": r.get("intensity", {}).get("index"),
-        }
-        for r in all_records
-        if r.get("from") and "intensity" in r
-    ]
+            "carbon_intensity_actual": intensity.get("actual"),
+            "carbon_intensity_forecast": intensity.get("forecast"),
+            "carbon_index": intensity.get("index"),
+        })
 
     df_carbon = pd.DataFrame(records)
     df_carbon["datetime"] = pd.to_datetime(

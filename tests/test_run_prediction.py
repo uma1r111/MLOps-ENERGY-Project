@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Import the client module you want to test
 import prediction_client.run_prediction_client as rpc

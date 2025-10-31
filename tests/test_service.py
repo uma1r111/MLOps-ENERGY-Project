@@ -1,9 +1,10 @@
 import pytest
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 import sys
-import importlib.util
+from model_serving.service import forecast, health_check
+
 
 # ---------- Mock heavy dependencies ----------
 sys.modules["bentoml"] = MagicMock()
@@ -11,7 +12,6 @@ sys.modules["tensorflow"] = MagicMock()
 sys.modules["keras"] = MagicMock()
 
 # Import after mocking
-from model_serving.service import forecast, health_check
 
 # ---------- FIXTURES ----------
 @pytest.fixture
