@@ -46,7 +46,7 @@ make dev
 ## ML Workflow Monitoring
 
 ### MLflow Tracking
-MLflow tracking server: `http://localhost:5000`
+MLflow tracking server: `http://localhost:8000`
 - Latest model version: `v1.0.0` (registered in MLflow)
 - Model Registry URI: `models:/energy_forecast/production`
 
@@ -70,13 +70,13 @@ Our ML pipeline utilizes several core AWS services to store artifacts, run model
    - Facilitates team collaboration
 
 2. **AWS EC2 for Model Serving**
-   ![EC2 Instances](images/EC2_deployment.png)
+   ![EC2 Instances](images/EC2_instance.png)
    - Hosts the inference API (BentoML) for high-throughput, persistent serving
    - Auto-scaling group for handling load variations
    - Continuous monitoring via CloudWatch
 
 3. **AWS Lambda for Serverless Tasks**
-   ![AWS Lambda](images/lambda.png)
+   ![AWS Lambda](images/Lambda.png)
    - Handles event-driven jobs (e.g., scheduled data pulls, lightweight feature transforms, asynchronous post-processing)
    - Integrates with S3 events and CloudWatch Events (EventBridge)
    - Useful for cost-efficient, short-running tasks and glue logic between services
@@ -168,6 +168,8 @@ The service is automatically packaged with:
   - `predictions.csv`
 - Enables reproducible data pipeline
 - Efficient large file handling with S3 backend
+
+### Docker Compose
 
 ## FAQ
 
