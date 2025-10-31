@@ -1,3 +1,11 @@
 dvc
 dotenv
 requests
+
+# Monitoring dependencies
+evidently>=0.4,<0.7
+flask>=2.0
+pandas
+numpy
+scikit-learn
+prometheus-client
