@@ -1,3 +1,4 @@
+import os
 import bentoml
 import numpy as np
 from datetime import datetime, timedelta
@@ -12,16 +13,25 @@ class ForecastOutput(BaseModel):
     status: str
 
 
-# Load the latest saved BentoML model
-try:
-    model_runner = bentoml.keras.get("energy_model:latest").to_runner()
-except Exception as e:
-    raise ValueError(f"❌ Failed to load Energy model runner: {str(e)}")
+# --- ✅ TEST-MODE FRIENDLY MODEL LOADING ---
+if os.getenv("TEST_MODE", "0") == "1":
+    # Mock-safe runner for tests (no TensorFlow/BentoML required)
+    class MockModelRunner:
+        def run(self, data):
+            import numpy as np
+            return np.random.rand(1, 1)
 
-svc = bentoml.Service("energy_forecaster", runners=[model_runner])
+    model_runner = MockModelRunner()
+    svc = None  # Not needed for tests
+else:
+    try:
+        model_runner = bentoml.keras.get("energy_model:latest").to_runner()
+        svc = bentoml.Service("energy_forecaster", runners=[model_runner])
+    except Exception as e:
+        raise ValueError(f"❌ Failed to load Energy model runner: {str(e)}")
 
 
-@svc.api(input=bentoml.io.JSON(), output=bentoml.io.JSON())
+# --- FORECAST FUNCTION ---
 def forecast(input_data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         input_features = np.array(input_data.get("input_features", []))
@@ -36,17 +46,14 @@ def forecast(input_data: Dict[str, Any]) -> Dict[str, Any]:
         last_timestamp = datetime.strptime(last_timestamp_str, "%Y-%m-%d %H:%M:%S")
         preds = []
 
-        # Assuming model expects 24-step input sequence
         last_seq = input_features[-24:]
 
         for _ in range(steps):
-            # Run prediction using BentoML runner
             pred = model_runner.run(
                 last_seq.reshape(1, last_seq.shape[0], last_seq.shape[1])
             )
             preds.append(float(pred[0][0]))
 
-            # Shift window for next step
             new_row = np.copy(last_seq[-1])
             new_row[-1] = pred[0][0]
             last_seq = np.vstack((last_seq[1:], new_row))
@@ -66,7 +73,7 @@ def forecast(input_data: Dict[str, Any]) -> Dict[str, Any]:
         return {"forecast": [], "forecast_dates": [], "status": f"error: {str(e)}"}
 
 
-@svc.api(input=bentoml.io.JSON(), output=bentoml.io.JSON())
+# --- HEALTH CHECK FUNCTION ---
 def health_check(input_data: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "status": "healthy",
