@@ -6,7 +6,7 @@ UK energy demand forecasting system with real-time monitoring and automated ML p
 
 *MLOps Pipeline Architecture*
 
-![MLOps Pipeline Architecture](images/architecture.png)
+<img src="images/architecture.png" alt="MLOps Pipeline Architecture" width="750" />
 
 The pipeline consists of six main stages:
 
@@ -100,30 +100,30 @@ Our ML pipeline utilizes two main AWS services:
 
 ```mermaid
 graph TB
-    subgraph VPC
+    subgraph AWS VPC["AWS VPC 🌐"]
         subgraph Public Subnet
-            ALB[Application Load Balancer]
-            EC2[EC2 Instance with BentoML Service]
+            ALB["AWS ALB 🔄<br/>Application Load Balancer"]
+            EC2["AWS EC2 🖥️<br/>BentoML Service"]
         end
         
         subgraph Private Subnet
-            MLflow[MLflow Server]
+            MLflow["MLflow Server 📊"]
         end
     end
     
-    subgraph Storage
-        S3[(S3 Buckets)]
-        S3_Data[(Training Data)]
-        S3_Models[(Model Artifacts)]
+    subgraph Storage["AWS Storage ☁️"]
+        S3["AWS S3 📦<br/>Buckets"]
+        S3_Data["Training Data 📊"]
+        S3_Models["Model Artifacts 🤖"]
     end
     
-    subgraph Monitoring
-        CW[CloudWatch]
-        Prom[Prometheus]
-        Graf[Grafana]
+    subgraph Monitoring["Monitoring Stack 📈"]
+        CW["AWS CloudWatch 📊"]
+        Prom["Prometheus ⚡"]
+        Graf["Grafana 📊"]
     end
     
-    Client-->ALB
+    Client(("Client 👥"))-->ALB
     ALB-->EC2
     EC2-->S3
     EC2-->MLflow
@@ -131,7 +131,24 @@ graph TB
     MLflow-->S3_Models
     EC2-->Prom
     Prom-->Graf
+
+    style AWS VPC fill:#FF9900,color:#000
+    style Storage fill:#FF9900,color:#000
+    style Monitoring fill:#232F3E,color:#fff
+    style EC2 fill:#FF9900,color:#000
+    style S3 fill:#FF9900,color:#000
+    style CW fill:#FF9900,color:#000
+    style ALB fill:#FF9900,color:#000
 ```
+
+Note: 
+- 🌐 AWS VPC
+- 🖥️ EC2 Instances
+- 📦 S3 Storage
+- 📊 CloudWatch
+- 🔄 Load Balancer
+- ⚡ Prometheus
+- 📈 Grafana Dashboard
 
 ## Model Serving & API Documentation
 
