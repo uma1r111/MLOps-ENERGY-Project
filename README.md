@@ -4,33 +4,20 @@ UK energy demand forecasting system with real-time monitoring and automated ML p
 
 ## Architecture Diagram
 
-*Data Flow and System Architecture*
+*MLOps Pipeline Architecture*
 
-```mermaid
-graph LR
-    subgraph Data Collection
-        A[Energy & Weather Data] --> B[Data Preprocessing]
-        B --> C[Feature Engineering]
-        C --> D[Feature Selection]
-    end
-    
-    subgraph Training Pipeline
-        D --> E[Model Training]
-        E --> F[Model Registry]
-        F --> G[Model Serving]
-    end
-    
-    subgraph Inference Pipeline
-        G --> H[BentoML Service]
-        H --> I[Prediction Client]
-    end
-    
-    subgraph Monitoring
-        H --> J[Data Drift Monitor]
-        H --> K[Prometheus Metrics]
-        K --> L[Grafana Dashboard]
-    end
-```
+![MLOps Pipeline Architecture](images/architecture.png)
+
+The pipeline consists of six main stages:
+
+1. **Data Collection**: Using OpenMateo API with GitHub Actions for automation
+2. **Feature Engineering**: Utilizing Feature Tools and Data Quality checks
+3. **Feature Selection**: XGBoost regressor, Random Forest, PCA, and ACF/PACF analysis
+4. **Model Training**: Multiple models including LSTM/GRU, Temporal CNN, SARIMAX, and Transformer
+5. **Model Save**: BentoML archiving and S3 storage with MLflow tracking
+6. **Model Forecasting**: Final predictions
+
+Each stage is integrated with AWS S3 for artifact storage and version control, while DVC manages data versioning.
 
 ## Quick Start
 
@@ -110,7 +97,41 @@ Our ML pipeline utilizes two main AWS services:
    - Continuous monitoring via CloudWatch
 
 ### Service Architecture
-![Cloud Architecture](images/cloud_architecture.png)
+
+```mermaid
+graph TB
+    subgraph VPC
+        subgraph Public Subnet
+            ALB[Application Load Balancer]
+            EC2[EC2 Instance with BentoML Service]
+        end
+        
+        subgraph Private Subnet
+            MLflow[MLflow Server]
+        end
+    end
+    
+    subgraph Storage
+        S3[(S3 Buckets)]
+        S3_Data[(Training Data)]
+        S3_Models[(Model Artifacts)]
+    end
+    
+    subgraph Monitoring
+        CW[CloudWatch]
+        Prom[Prometheus]
+        Graf[Grafana]
+    end
+    
+    Client-->ALB
+    ALB-->EC2
+    EC2-->S3
+    EC2-->MLflow
+    EC2-->CW
+    MLflow-->S3_Models
+    EC2-->Prom
+    Prom-->Graf
+```
 
 ## Model Serving & API Documentation
 
