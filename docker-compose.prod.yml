@@ -1,0 +1,39 @@
+# docker-compose.prod.yml
+services:
+  data_preprocessing:
+    image: your-dockerhub-username/mlops-data-preprocessing:latest
+    build: null
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    profiles:
+      - prod
+
+  model_training:
+    image: your-dockerhub-username/mlops-model-training:latest
+    build: null
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    profiles:
+      - prod
+
+  prediction_client:
+    image: your-dockerhub-username/mlops-prediction-client:latest
+    build: null
+    restart: always
+    profiles:
+      - prod
+
+  monitoring:
+    image: your-dockerhub-username/mlops-monitoring:latest
+    build: null
+    restart: always
+    profiles:
+      - prod

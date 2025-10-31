@@ -1,0 +1,23 @@
+# docker-compose.db.yml
+services:
+  postgres:
+    image: postgres:15
+    container_name: mlops_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: mlops_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - mlops_net
+    profiles:
+      - db
+      - dev
+      - test
+      - prod
+
+volumes:
+  pgdata:

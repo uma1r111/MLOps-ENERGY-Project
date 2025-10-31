@@ -1,3 +1,4 @@
+# docker-compose.yml (base)
 version: '3.9'
 
 services:
@@ -14,6 +15,11 @@ services:
       retries: 3
     networks:
       - mlops_net
+    profiles:
+      - app
+      - dev
+      - test
+      - prod
 
   model_training:
     build:
@@ -30,23 +36,11 @@ services:
       retries: 3
     networks:
       - mlops_net
-
-
-
-  monitoring:
-    build:
-      context: "./monitoring"
-    container_name: monitoring
-    ports:
-      - "8002:8002"
-
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - mlops_net
+    profiles:
+      - app
+      - dev
+      - test
+      - prod
 
   prediction_client:
     build:
@@ -54,7 +48,6 @@ services:
     container_name: prediction_client
     ports:
       - "8003:8003"
-
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s
@@ -62,6 +55,29 @@ services:
       retries: 3
     networks:
       - mlops_net
+    profiles:
+      - app
+      - dev
+      - test
+      - prod
+
+  monitoring:
+    build:
+      context: "./monitoring"
+    container_name: monitoring
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mlops_net
+    profiles:
+      - monitoring
+      - dev
+      - prod
 
 networks:
   mlops_net:

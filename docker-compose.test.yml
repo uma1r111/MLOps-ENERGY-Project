@@ -1,0 +1,19 @@
+# docker-compose.test.yml
+services:
+  data_preprocessing:
+    environment:
+      - DATA_PATH=/app/data/test_selected_features.csv
+    profiles:
+      - test
+
+  model_training:
+    environment:
+      - USE_SMALL_DATASET=1
+    profiles:
+      - test
+
+  prediction_client:
+    environment:
+      - MOCK_MODEL=1
+    profiles:
+      - test

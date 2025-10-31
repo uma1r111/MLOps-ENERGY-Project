@@ -1,0 +1,31 @@
+# docker-compose.dev.yml
+services:
+  data_preprocessing:
+    volumes:
+      - ./data\ preprocessing:/app
+    environment:
+      - FLASK_ENV=development
+    profiles:
+      - dev
+
+  model_training:
+    volumes:
+      - ./model\ training:/app
+    environment:
+      - FLASK_ENV=development
+    profiles:
+      - dev
+
+  prediction_client:
+    volumes:
+      - ./prediction\ client:/app
+    environment:
+      - FLASK_ENV=development
+    profiles:
+      - dev
+
+  monitoring:
+    environment:
+      - FLASK_ENV=development
+    profiles:
+      - dev
