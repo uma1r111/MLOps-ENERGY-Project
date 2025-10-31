@@ -171,6 +171,76 @@ The service is automatically packaged with:
 
 ### Docker Compose
 
+Our project leverages Docker Compose with environment profiles for efficient microservices orchestration:
+
+#### Microservices Architecture
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Data Preprocessing | 8004 | Cleans, transforms, and prepares raw data for training |
+| Model Training | 8000 | Trains and evaluates ML models on processed data |
+| Prediction Client | 8003 | Provides a prediction API for serving trained models |
+| Monitoring Service | 8002 | Displays system and model health/status information |
+
+Each service has its own Dockerfile and includes a health endpoint for monitoring.
+
+#### Docker Compose Profiles
+
+The project uses Docker Compose v3.9 with profiles for managing multiple environments:
+
+| Profile | Includes | Purpose |
+|---------|----------|----------|
+| dev | All services | For local development and debugging |
+| test | All services | For integration and test automation |
+| prod | All services | For deployment-ready, production mode |
+| app | Data Preprocessing, Model Training, Prediction Client | For app-specific tasks |
+| monitoring | Monitoring only | For isolated health/status checks |
+
+#### Usage Commands
+
+```bash
+# Build and run all services
+docker compose --profile dev up --build
+
+# Run only application services
+docker compose --profile app up --build
+
+# Run monitoring service only
+docker compose --profile monitoring up --build
+
+# Run tests
+docker compose --profile test up
+
+# Run production setup
+docker compose --profile prod up -d
+```
+
+#### Service Access Points
+
+After running the containers, access services at:
+- Data Preprocessing: `http://localhost:8004`
+- Model Training: `http://localhost:8000`
+- Prediction Client: `http://localhost:8003`
+- Monitoring: `http://localhost:8002`
+
+Each service exposes a `/health` endpoint returning:
+```json
+{
+  "status": "healthy",
+  "service": "service_name"
+}
+```
+
+#### Cleanup
+
+```bash
+# Stop and remove all containers
+docker compose down
+
+# Remove unused images and networks
+docker system prune -f
+```
+
 ## FAQ
 
 ### Common Build Issues
