@@ -1,7 +1,9 @@
-# docker-compose.yml (base)
 version: '3.9'
 
 services:
+  # -------------------------------
+  # 🧹 DATA PREPROCESSING SERVICE
+  # -------------------------------
   data_preprocessing:
     build:
       context: "./data preprocessing"
@@ -16,11 +18,15 @@ services:
     networks:
       - mlops_net
     profiles:
-      - app
+      - preprocessing
+      - all
       - dev
       - test
       - prod
 
+  # -------------------------------
+  # 🧠 MODEL TRAINING SERVICE
+  # -------------------------------
   model_training:
     build:
       context: "./model training"
@@ -37,11 +43,15 @@ services:
     networks:
       - mlops_net
     profiles:
-      - app
+      - training
+      - all
       - dev
       - test
       - prod
 
+  # -------------------------------
+  # 🔮 PREDICTION CLIENT SERVICE
+  # -------------------------------
   prediction_client:
     build:
       context: "./prediction client"
@@ -56,11 +66,14 @@ services:
     networks:
       - mlops_net
     profiles:
-      - app
+      - prediction
+      - all
       - dev
-      - test
       - prod
 
+  # -------------------------------
+  # 📈 MONITORING SERVICE
+  # -------------------------------
   monitoring:
     build:
       context: "./monitoring"
@@ -76,9 +89,13 @@ services:
       - mlops_net
     profiles:
       - monitoring
+      - all
       - dev
       - prod
 
+# --------------------------------
+# 🌐 SHARED NETWORK
+# --------------------------------
 networks:
   mlops_net:
     driver: bridge
