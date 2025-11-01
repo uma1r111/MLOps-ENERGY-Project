@@ -4,8 +4,7 @@ import logging
 
 # --- Setup logging ---
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ SELECTED_FEATURES = [
     "scaled_temperature_C",
     "scaled_price_rolling_24h_mean",
     "scaled_wind_lag_1h",
-    "retail_price_£_per_kWh"  # target column
+    "retail_price_£_per_kWh",  # target column
 ]
 
 
@@ -53,7 +52,7 @@ def update_selected_features():
 
     # --- Load engineered features ---
     full_df = pd.read_csv(ENGINEERED_PATH)
-    full_df['datetime'] = pd.to_datetime(full_df['datetime'], utc=True)
+    full_df["datetime"] = pd.to_datetime(full_df["datetime"], utc=True)
 
     # --- If selected_features.csv does not exist, create it ---
     if not os.path.exists(SELECTED_PATH):
@@ -65,11 +64,11 @@ def update_selected_features():
 
     # --- Load existing selected features ---
     feature_df = pd.read_csv(SELECTED_PATH)
-    feature_df['datetime'] = pd.to_datetime(feature_df['datetime'], utc=True)
+    feature_df["datetime"] = pd.to_datetime(feature_df["datetime"], utc=True)
 
     # --- Find new rows ---
-    last_datetime = feature_df['datetime'].max()
-    new_data = full_df[full_df['datetime'] > last_datetime]
+    last_datetime = feature_df["datetime"].max()
+    new_data = full_df[full_df["datetime"] > last_datetime]
 
     if new_data.empty:
         print("✅ No new rows detected. selected_features.csv is already up-to-date.")
@@ -81,10 +80,13 @@ def update_selected_features():
     updated_df = updated_df.drop_duplicates(subset="datetime", keep="last")
 
     # --- Save the updated file ---
-    updated_df['datetime'] = updated_df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    updated_df["datetime"] = updated_df["datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
     updated_df.to_csv(SELECTED_PATH, index=False)
 
-    print(f"✅ Added {len(new_feature_data)} new rows to selected_features.csv (Total: {len(updated_df)})")
+    print(
+        f"✅ Added {len(new_feature_data)} new rows to selected_features.csv (Total: {len(updated_df)})"
+    )
+
 
 if __name__ == "__main__":
     update_selected_features()
