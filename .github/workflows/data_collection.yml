@@ -35,7 +35,7 @@ jobs:
           dvc pull data/uk_energy_data.csv.dvc || echo "No existing data found, starting fresh"
 
       - name: Run data collection script
-        run: python "data collection/energy_weather_data.py"
+        run: python "data_collection/energy_weather_data.py"
 
       - name: Track updated CSV and metrics.json with DVC
         env:

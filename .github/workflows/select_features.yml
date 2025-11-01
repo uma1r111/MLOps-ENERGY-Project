@@ -50,7 +50,7 @@ jobs:
 
       # 6️⃣ Run the select_features.py script
       - name: Run Select Features Update
-        run: python "data selection/data_selection.py"
+        run: python "data_selection/data_selection.py"
 
       # 7️⃣ Track updated selected_features.csv with DVC
       - name: Track updated selected_features.csv with DVC

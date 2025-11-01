@@ -63,7 +63,7 @@ jobs:
 
       - name: Copy Service File
         run: |
-          cp "model serving/service.py" ./service.py
+          cp "model_serving/service.py" ./service.py
           echo "Copied service.py from Model Serving folder"
 
       - name: Start BentoML Service
@@ -91,7 +91,7 @@ jobs:
           curl -X POST http://localhost:3000/health_check -H "Content-Type: application/json" -d '{}'
 
       - name: Run BentoML prediction client
-        run: python "prediction client/run_prediction_client.py"
+        run: python "prediction_client/run_prediction_client.py"
 
       - name: Stop BentoML Service
         if: always()
