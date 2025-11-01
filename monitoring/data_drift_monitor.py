@@ -1,106 +1,81 @@
-import pandas as pd
-import numpy as np
-from datetime import timedelta
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 import os
+import sys
+from datetime import timedelta
+import pandas as pd
+from flask import Flask, send_file
+
+try:
+    from evidently.report import Report
+    from evidently.metric_preset import DataDriftPreset
+    from evidently import ColumnMapping
+except Exception as exc:
+    print(f"Import error: {exc}")
+    sys.exit(1)
 
 # === CONFIG ===
 DATA_PATH = "data/selected_features.csv"
-PROMETHEUS_PUSHGATEWAY = ""
-JOB_NAME = "data_drift_monitor"
+REPORT_PATH = "monitoring/evidently_drift_report.html"
+PORT = 7000
 
-def calculate_drift(reference_df, current_df, feature_cols):
-    """
-    Compute simple drift metrics between reference (monthly) and current (weekly) datasets.
-    Returns a dict of drift scores per feature.
-    """
-    drift_results = {}
-
-    for col in feature_cols:
-        if col == "datetime":  # Skip datetime
-            continue
-        if col not in reference_df.columns or col not in current_df.columns:
-            continue
-
-        ref = reference_df[col].dropna()
-        cur = current_df[col].dropna()
-
-        if ref.empty or cur.empty:
-            continue
-
-        # Compute summary statistics
-        mean_diff = abs(cur.mean() - ref.mean())
-        std_diff = abs(cur.std() - ref.std())
-        corr = np.corrcoef(ref[:min(len(ref), len(cur))], cur[:min(len(ref), len(cur))])[0, 1]
-
-        drift_results[col] = {
-            "mean_diff": mean_diff,
-            "std_diff": std_diff,
-            "corr": corr
-        }
-
-    return drift_results
-
-
-def push_metrics_to_prometheus(drift_results, registry):
-    """
-    Push drift metrics to Prometheus Pushgateway.
-    """
-    for feature, metrics in drift_results.items():
-        for metric_name, value in metrics.items():
-            g = Gauge(f"data_drift_{feature}_{metric_name}",
-                      f"Drift metric {metric_name} for feature {feature}",
-                      registry=registry)
-            g.set(float(value))
-
-    # Push metrics
-    push_to_gateway(PROMETHEUS_PUSHGATEWAY, job=JOB_NAME, registry=registry)
-
-
-def monitor_drift():
-    """
-    Main function to monitor drift between latest week and previous month.
-    """
-    if not os.path.exists(DATA_PATH):
-        print(f"Missing dataset: {DATA_PATH}")
-        return
-
-    df = pd.read_csv(DATA_PATH)
+def build_windows(df):
     df["datetime"] = pd.to_datetime(df["datetime"])
+    latest = df["datetime"].max()
 
-    latest_date = df["datetime"].max()
-
-    # --- Define windows ---
-    current_start = latest_date - timedelta(days=7)
+    current_start = latest - timedelta(days=7)
     reference_start = current_start - timedelta(days=30)
     reference_end = current_start - timedelta(days=1)
 
-    reference_df = df[(df["datetime"] >= reference_start) & (df["datetime"] <= reference_end)]
-    current_df = df[df["datetime"] >= current_start]
+    reference_df = df[(df["datetime"] >= reference_start) & (df["datetime"] <= reference_end)].copy()
+    current_df = df[df["datetime"] >= current_start].copy()
 
-    print(f"Reference window: {reference_start.date()} → {reference_end.date()} ({len(reference_df)} rows)")
-    print(f"Current window: {current_start.date()} → {latest_date.date()} ({len(current_df)} rows)")
+    return reference_df, current_df, reference_start, reference_end, current_start, latest
+
+def generate_report(reference_df, current_df, report_path=REPORT_PATH):
+    column_mapping = ColumnMapping()
+    report = Report(metrics=[DataDriftPreset()]) 
+
+    report.run(reference_data=reference_df, current_data=current_df, column_mapping=column_mapping)
+
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
+    report.save_html(report_path)
+    return report
+
+def monitor_and_generate():
+    if not os.path.exists(DATA_PATH):
+        print(f"Dataset missing at {DATA_PATH}")
+        return False
+
+    df = pd.read_csv(DATA_PATH)
+    reference_df, current_df, ref_start, ref_end, cur_start, latest = build_windows(df)
+
+    print(f"Reference window: {ref_start.date()} → {ref_end.date()} ({len(reference_df)} rows)")
+    print(f"Current window:   {cur_start.date()} → {latest.date()} ({len(current_df)} rows)")
 
     if reference_df.empty or current_df.empty:
-        print("Not enough data for comparison — skipping drift check.")
-        return
+        print("Not enough data for comparison — skipping.")
+        return False
 
-    # --- Select numeric columns only ---
-    feature_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    generate_report(reference_df, current_df)
+    print(f"Evidently report saved to: {REPORT_PATH}")
+    return True
 
-    # --- Calculate drift ---
-    drift_results = calculate_drift(reference_df, current_df, feature_cols)
+# === Flask wrapper to serve the HTML report ===
+app = Flask(__name__)
 
-    # --- Log to console ---
-    for feature, metrics in drift_results.items():
-        print(f"{feature} → mean_diff={metrics['mean_diff']:.4f}, std_diff={metrics['std_diff']:.4f}, corr={metrics['corr']:.4f}")
+@app.route("/")
+def serve_dashboard():
+    abs_report_path = os.path.abspath(REPORT_PATH)  # get absolute path
 
-    # --- Push metrics to Prometheus ---
-    registry = CollectorRegistry()
-    push_metrics_to_prometheus(drift_results, registry)
+    if not os.path.exists(abs_report_path):
+        return (
+            f"Report not found at {abs_report_path}. "
+        ), 404
 
-    print("Drift metrics pushed to Prometheus Pushgateway.")
-
+    return send_file(abs_report_path)
 
 if __name__ == "__main__":
-    monitor_drift()
+    ok = monitor_and_generate()
+    if not ok:
+        print("Report generation failed or skipped; server will still serve old report if available.")
+    print(f"Serving Evidently report at http://localhost:{PORT}  (CTRL+C to stop)")
+    app.run(host="0.0.0.0", port=PORT)
