@@ -19,11 +19,8 @@
 | Member | Role / Area | Detailed Contributions |
 |---------|--------------|------------------------|
 | **Sameed Ahmad** | 🧱 *Infrastructure & CI/CD* | Set up project structure, Makefile, Dockerfile, and GitHub Actions workflow for build, test, and deployment. Configured pre-commit hooks and security checks. |
-
 | **Izma Khan** | 📊 *Data Pipeline & Monitoring* | Handled data preparation and feature engineering. Implemented Evidently AI dashboard monitoring. Drafted and formatted the main **README.md**. |
-
 | **Shaikh Muhammad Umair** | 🤖 *Model & MLflow* | Developed and trained the forecasting model. Configured MLflow tracking and registered model v1 with S3 backend. Developed the **BentoML** inference service with `/predict`, `/health`, and `/docs` endpoints. |
-
 | **Abdullah Rehman** | 🌐 *API & Cloud Deployment* | AWS EC2 deployment, and S3 integration. Configured pip-audit vulnerability scans, and code compliance checks. |
 
 
