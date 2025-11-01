@@ -1,0 +1,101 @@
+version: '3.9'
+
+services:
+  # -------------------------------
+  # 🧹 DATA PREPROCESSING SERVICE
+  # -------------------------------
+  data_preprocessing:
+    build:
+      context: "./data preprocessing"
+    container_name: data_preprocessing
+    ports:
+      - "8004:8004"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mlops_net
+    profiles:
+      - preprocessing
+      - all
+      - dev
+      - test
+      - prod
+
+  # -------------------------------
+  # 🧠 MODEL TRAINING SERVICE
+  # -------------------------------
+  model_training:
+    build:
+      context: "./model training"
+    container_name: model_training
+    ports:
+      - "8000:8000"
+    depends_on:
+      - data_preprocessing
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mlops_net
+    profiles:
+      - training
+      - all
+      - dev
+      - test
+      - prod
+
+  # -------------------------------
+  # 🔮 PREDICTION CLIENT SERVICE
+  # -------------------------------
+  prediction_client:
+    build:
+      context: "./prediction client"
+    container_name: prediction_client
+    ports:
+      - "8003:8003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mlops_net
+    profiles:
+      - prediction
+      - all
+      - dev
+      - prod
+
+  # -------------------------------
+  # 📈 MONITORING SERVICE
+  # -------------------------------
+  monitoring:
+    build:
+      context: "./monitoring"
+    container_name: monitoring
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mlops_net
+    profiles:
+      - monitoring
+      - all
+      - dev
+      - prod
+
+# --------------------------------
+# 🌐 SHARED NETWORK
+# --------------------------------
+networks:
+  mlops_net:
+    driver: bridge
