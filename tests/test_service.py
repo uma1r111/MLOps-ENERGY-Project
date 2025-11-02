@@ -1,17 +1,20 @@
-import pytest
-import numpy as np
-from datetime import datetime
-from unittest.mock import MagicMock, patch
 import sys
-from model_serving.service import forecast, health_check
+from unittest.mock import MagicMock
 
-
-# ---------- Mock heavy dependencies ----------
+# ---------- MOCK HEAVY DEPENDENCIES FIRST ----------
+# These must come *before* importing your service
 sys.modules["bentoml"] = MagicMock()
 sys.modules["tensorflow"] = MagicMock()
 sys.modules["keras"] = MagicMock()
 
-# Import after mocking
+# ---------- THEN IMPORT OTHER LIBRARIES ----------
+import pytest
+import numpy as np
+from datetime import datetime
+from unittest.mock import patch
+
+# Import your functions after mocking
+from model_serving.service import forecast, health_check
 
 
 # ---------- FIXTURES ----------
