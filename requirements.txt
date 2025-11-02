@@ -1,3 +1,14 @@
+numpy
+scikit-learn
+xgboost
+flask
 dvc
-dotenv
+python-dotenv
 requests
+pandas
+pytest
+pytest-cov
+black
+flake8
+isort
+
