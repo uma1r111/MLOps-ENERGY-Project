@@ -1,7 +1,35 @@
+# ---------------------
+# Code Quality & Security
+# ---------------------
 pip-audit>=2.0
 pre-commit
 detect-secrets
 ruff
 black
+flake8
+isort
+
+# ---------------------
+# Testing & Coverage
+# ---------------------
 pytest
 pytest-cov
+
+# ---------------------
+# Core Dependencies
+# ---------------------
+dvc
+python-dotenv
+requests
+pandas
+numpy
+scikit-learn
+xgboost
+flask
+
+# ---------------------
+# ML Model Serving
+# ---------------------
+bentoml
+tensorflow
+evidently>=0.4,<0.7
