@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, render_template_string
 
 app = Flask(__name__)
 
+
 @app.route("/")
 def home():
     return """
@@ -76,6 +77,7 @@ def home():
     </html>
     """
 
+
 @app.route("/health")
 def health():
     # Allow both HTML and JSON modes
@@ -87,7 +89,8 @@ def health():
     color = "#00ffae" if status == "healthy" else "#ff6b6b"
     emoji = "✅" if status == "healthy" else "❌"
 
-    return render_template_string(f"""
+    return render_template_string(
+        f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -130,7 +133,9 @@ def health():
         </div>
     </body>
     </html>
-    """)
+    """
+    )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
