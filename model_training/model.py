@@ -26,6 +26,15 @@ print(f"Date range: {df['datetime'].min()} to {df['datetime'].max()}")
 # Step 2: Prepare Data
 # ----------------------
 target_col = "retail_price_£_per_kWh"
+
+df = df.dropna(subset=[target_col])
+df = df.dropna()  # Drop any remaining NaN across all features
+
+if df.empty:
+    raise ValueError(
+        "❌ After dropping NaN values, the dataset is empty. Check your preprocessing step."
+    )
+
 target = df[target_col].values.reshape(-1, 1)
 features = df.drop(columns=["datetime", target_col])
 

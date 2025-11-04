@@ -72,16 +72,22 @@ services:
       - prod
 
   # -------------------------------
-  # 📈 MONITORING SERVICE
+  # 📈 MONITORING SERVICE (Evidently)
   # -------------------------------
   monitoring:
     build:
       context: "./monitoring"
     container_name: monitoring
     ports:
-      - "8002:8002"
+      - "7000:7000"
+    # 👇 Mount shared data folder so it can read the latest processed CSV
+    volumes:
+      - ./data:/app/data
+    # 👇 Wait for model_training to complete before running drift checks
+    depends_on:
+      - model_training
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:7000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

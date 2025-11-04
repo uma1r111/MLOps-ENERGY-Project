@@ -25,7 +25,7 @@ pandas
 numpy
 scikit-learn
 xgboost
-flask
+flask>=2.0
 
 # ---------------------
 # ML Model Serving

@@ -1,14 +1,35 @@
-numpy
-scikit-learn
-xgboost
-flask
-dvc
-python-dotenv
-requests
-pandas
-pytest
-pytest-cov
+# ---------------------
+# Code Quality & Security
+# ---------------------
+pip-audit>=2.0
+pre-commit
+detect-secrets
+ruff
 black
 flake8
 isort
 
+# ---------------------
+# Testing & Coverage
+# ---------------------
+pytest
+pytest-cov
+
+# ---------------------
+# Core Dependencies
+# ---------------------
+dvc
+python-dotenv
+requests
+pandas
+numpy
+scikit-learn
+xgboost
+flask>=2.0
+
+# ---------------------
+# ML Model Serving
+# ---------------------
+bentoml
+tensorflow
+evidently>=0.4,<0.7

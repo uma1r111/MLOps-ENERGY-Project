@@ -1,3 +1,27 @@
-/.env
-/notes.txt
+﻿# Ignore virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore environment and system files
+.env
+*.dll
+*.pkl
+*.h5
+*.log
+
+# Ignore site-packages if accidentally outside venv
+Lib/
+lib/
+
+# Ignore generated or output files
 monitoring/evidently_drift_report.html
+bentoml_forecast_output.csv
+notes.txt
