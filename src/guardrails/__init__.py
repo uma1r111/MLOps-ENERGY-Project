@@ -1,15 +1,16 @@
+# src/guardrails/__init__.py
+
 """
-Guardrails module for LLM safety and content filtering.
+Guardrails Package - Exports all guardrail components
 """
 
 from .guardrail_engine import GuardrailEngine
-from .filters.input_validator import InputValidator
-from .filters.output_moderator import OutputModerator
-from .policies.policy_engine import PolicyEngine
+from .metrics import GuardrailMetrics
+
 
 __all__ = [
     'GuardrailEngine',
+    'GuardrailMetrics',
     'InputValidator',
-    'OutputModerator',
-    'PolicyEngine'
+    'OutputModerator'
 ]

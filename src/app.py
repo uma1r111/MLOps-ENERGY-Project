@@ -34,6 +34,8 @@ from src.rag.config import (
     MAX_TOKENS
 )
 
+from src.guardrails import GuardrailEngine, GuardrailMetrics
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +49,7 @@ documents = None
 embedding_model = None
 llm = None
 
+guardrail_engine = None
 
 def load_rag_system():
     """Load FAISS index and initialize RAG system"""
@@ -87,11 +90,23 @@ def load_rag_system():
             convert_system_message_to_human=True
         )
         logger.info("✓ Gemini model initialized")
+
+        logger.info("Initializing Guardrails...")
+        try:
+            guardrail_engine = GuardrailEngine()
+            logger.info("✓ Guardrails initialized")
+            logger.info(f"  - Input Validators: Active")
+            logger.info(f"  - Output Moderators: Active")
+        except Exception as e:
+            logger.warning(f"⚠️  Guardrails initialization failed: {str(e)}")
+            logger.warning("Continuing without guardrails...")
+            guardrail_engine = None
         
         logger.info("=" * 60)
         logger.info("RAG System Ready! 🚀")
         logger.info(f"  Embeddings: {FASTEMBED_MODEL} (local)")
         logger.info(f"  LLM: {GEMINI_MODEL}")
+        logger.info(f"  Guardrails: {'✓ Active' if guardrail_engine else '✗ Disabled'}")
         logger.info("=" * 60)
         
     except Exception as e:
@@ -154,6 +169,24 @@ token_counter = Counter(
 retrieval_counter = Counter(
     'rag_retrievals_total',
     'Total number of document retrievals'
+)
+
+guardrail_violations = Counter(
+    'guardrail_violations_total',
+    'Total guardrail violations by type',
+    ['violation_type', 'stage']  # stage: input or output
+)
+
+guardrail_checks = Counter(
+    'guardrail_checks_total',
+    'Total guardrail checks performed',
+    ['check_type', 'result']  # result: passed or failed
+)
+
+guardrail_latency = Histogram(
+    'guardrail_check_latency_seconds',
+    'Time taken for guardrail checks',
+    ['stage']  # input or output
 )
 
 
@@ -305,13 +338,14 @@ async def health_check():
 @app.post("/query", response_model=QueryResponse)
 async def query_rag(query: QueryRequest):
     """
-    Query the RAG system with a question.
+    Query the RAG system with guardrails protection.
     
-    Args:
-        query: QueryRequest with question and optional top_k
-        
-    Returns:
-        QueryResponse with answer, sources, and metadata
+    Flow:
+    1. 🛡️ INPUT VALIDATION (Guardrails)
+    2. 📚 Document Retrieval
+    3. 🤖 Answer Generation
+    4. 🛡️ OUTPUT MODERATION (Guardrails)
+    5. ✅ Return Response
     """
     # Check if RAG system is loaded
     if faiss_index is None or llm is None:
@@ -322,22 +356,144 @@ async def query_rag(query: QueryRequest):
         )
     
     start_time = time.time()
+    guardrail_flags = {}
     
     try:
         logger.info(f"Processing query: {query.question[:50]}...")
         
-        # Step 1: Retrieve relevant documents
+        # ============================================================
+        # STEP 1: INPUT VALIDATION (GUARDRAILS)
+        # ============================================================
+        if guardrail_engine:
+            logger.info("🛡️  Step 1: Input Validation")
+            input_start = time.time()
+            
+            try:
+                input_validation = guardrail_engine.validate_input(query.question)
+                guardrail_flags['input_validation'] = input_validation
+                
+                # Track metrics
+                guardrail_checks.labels(
+                    check_type='input',
+                    result='passed' if input_validation.get('is_safe', True) else 'failed'
+                ).inc()
+                
+                guardrail_latency.labels(stage='input').observe(time.time() - input_start)
+                
+                # If unsafe, reject the query
+                if not input_validation.get('is_safe', True):
+                    violations = input_validation.get('violations', [])
+                    
+                    # Log each violation
+                    for violation in violations:
+                        violation_type = violation.get('type', 'unknown')
+                        guardrail_violations.labels(
+                            violation_type=violation_type,
+                            stage='input'
+                        ).inc()
+                        logger.warning(f"⚠️  Input violation: {violation_type}")
+                    
+                    query_counter.labels(status='guardrail_rejected').inc()
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "Query rejected by input guardrails",
+                            "violations": violations,
+                            "message": "Your query contains content that violates our safety policies."
+                        }
+                    )
+                
+                logger.info(f"✓ Input validation passed ({time.time() - input_start:.3f}s)")
+                
+            except HTTPException:
+                raise  # Re-raise HTTP exceptions
+            except Exception as e:
+                logger.error(f"Guardrail check failed: {str(e)}")
+                # Continue without guardrails if they fail
+                guardrail_flags['input_validation_error'] = str(e)
+        
+        # ============================================================
+        # STEP 2: DOCUMENT RETRIEVAL (Original Logic)
+        # ============================================================
+        logger.info("📚 Step 2: Document Retrieval")
         retrieved_docs = retrieve_documents(query.question, query.top_k)
         retrieval_counter.inc()
+        logger.info(f"✓ Retrieved {len(retrieved_docs)} documents")
         
-        # Step 2: Generate answer with Gemini
+        # ============================================================
+        # STEP 3: ANSWER GENERATION (Original Logic)
+        # ============================================================
+        logger.info("🤖 Step 3: Answer Generation")
         answer = generate_answer(query.question, retrieved_docs)
+        logger.info(f"✓ Answer generated ({len(answer)} chars)")
         
+        # ============================================================
+        # STEP 4: OUTPUT MODERATION (GUARDRAILS)
+        # ============================================================
+        if guardrail_engine:
+            logger.info("🛡️  Step 4: Output Moderation")
+            output_start = time.time()
+            
+            try:
+                output_moderation = guardrail_engine.moderate_output(
+                    answer,
+                    context=retrieved_docs
+                )
+                guardrail_flags['output_moderation'] = output_moderation
+                
+                # Track metrics
+                guardrail_checks.labels(
+                    check_type='output',
+                    result='passed' if output_moderation.get('is_safe', True) else 'failed'
+                ).inc()
+                
+                guardrail_latency.labels(stage='output').observe(time.time() - output_start)
+                
+                # If unsafe, sanitize or reject
+                if not output_moderation.get('is_safe', True):
+                    violations = output_moderation.get('violations', [])
+                    
+                    # Log violations
+                    for violation in violations:
+                        violation_type = violation.get('type', 'unknown')
+                        guardrail_violations.labels(
+                            violation_type=violation_type,
+                            stage='output'
+                        ).inc()
+                        logger.warning(f"⚠️  Output violation: {violation_type}")
+                    
+                    # Option 1: Sanitize the answer
+                    answer = (
+                        "I apologize, but I cannot provide this response as it "
+                        "violates our content safety guidelines. Please rephrase "
+                        "your question or ask something else."
+                    )
+                    guardrail_flags['output_sanitized'] = True
+                    
+                    # Option 2: Reject entirely (uncomment if preferred)
+                    # query_counter.labels(status='guardrail_rejected').inc()
+                    # raise HTTPException(
+                    #     status_code=400,
+                    #     detail={
+                    #         "error": "Response rejected by output guardrails",
+                    #         "violations": violations
+                    #     }
+                    # )
+                
+                logger.info(f"✓ Output moderation passed ({time.time() - output_start:.3f}s)")
+                
+            except Exception as e:
+                logger.error(f"Output moderation failed: {str(e)}")
+                guardrail_flags['output_moderation_error'] = str(e)
+        
+        # ============================================================
+        # STEP 5: FORMAT AND RETURN RESPONSE
+        # ============================================================
         # Format sources
         sources = []
         for doc in retrieved_docs:
             sources.append(SourceDocument(
-                content=doc.page_content[:300],  # Truncate for response
+                content=doc.page_content[:300],
                 source=doc.metadata.get('source', 'unknown'),
                 page=doc.metadata.get('page', None)
             ))
@@ -355,6 +511,16 @@ async def query_rag(query: QueryRequest):
         
         logger.info(f"✓ Query completed in {latency:.2f}s")
         
+        # Add guardrail info to response metadata
+        response_metadata = {
+            "model": GEMINI_MODEL,
+            "embedding_model": FASTEMBED_MODEL + " (local)",
+            "guardrails": {
+                "enabled": guardrail_engine is not None,
+                "flags": guardrail_flags
+            }
+        }
+        
         return QueryResponse(
             answer=answer,
             sources=sources,
@@ -364,6 +530,8 @@ async def query_rag(query: QueryRequest):
             embedding_model=FASTEMBED_MODEL + " (local)"
         )
     
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
         query_counter.labels(status='error').inc()
         logger.error(f"Query failed: {str(e)}")
