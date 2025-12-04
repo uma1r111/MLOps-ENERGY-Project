@@ -28,3 +28,9 @@ notes.txt
 
 # Ignore FAISS index data
 data/faiss_index/
+.env
+.fastembed_cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+EOF
