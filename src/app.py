@@ -366,14 +366,14 @@ async def query_rag(query: QueryRequest):
         logger.info(f"Processing query: {query.question[:50]}...")
         
         # ============================================================
-        # STEP 1: INPUT VALIDATION (GUARDRAILS) - FIXED
+        # STEP 1: INPUT VALIDATION (GUARDRAILS) - FIXED FOR PII
         # ============================================================
         if guardrail_engine:
             logger.info("🛡️ Step 1: Input Validation & Guardrails")
             input_start = time.time()
             
             try:
-                # CRITICAL FIX: Use correct field name 'passed' not 'is_safe'
+                # Run input validation
                 input_validation = guardrail_engine.validate_input(query.question)
                 guardrail_flags['input_validation'] = {
                     'passed': input_validation['passed'],
@@ -389,7 +389,7 @@ async def query_rag(query: QueryRequest):
                 
                 guardrail_latency.labels(stage='input').observe(time.time() - input_start)
                 
-                # CRITICAL FIX: Check 'passed' field, not 'is_safe'
+                # CRITICAL: Block if validation failed
                 if not input_validation['passed']:
                     violations = input_validation.get('violations', [])
                     
@@ -414,13 +414,8 @@ async def query_rag(query: QueryRequest):
                         }
                     )
                 
-                # Use sanitized input (PII anonymized)
+                # Use sanitized input (only reaches here if passed=True)
                 sanitized_query = input_validation.get('sanitized_input', query.question)
-                
-                # Log PII detection
-                if input_validation.get('pii_detected'):
-                    pii_types = [pii['type'] for pii in input_validation['pii_detected']]
-                    logger.info(f"ℹ️  PII detected and anonymized: {pii_types}")
                 
                 logger.info(f"✓ Input validation passed ({time.time() - input_start:.3f}s)")
                 
@@ -447,14 +442,14 @@ async def query_rag(query: QueryRequest):
         logger.info(f"✓ Answer generated ({len(answer)} chars)")
         
         # ============================================================
-        # STEP 4: OUTPUT MODERATION (GUARDRAILS) - FIXED
+        # STEP 4: OUTPUT MODERATION (GUARDRAILS)
         # ============================================================
         if guardrail_engine:
             logger.info("🛡️ Step 4: Output Moderation")
             output_start = time.time()
             
             try:
-                # CRITICAL FIX: Use correct field name 'passed' not 'is_safe'
+                # Run output moderation
                 output_moderation = guardrail_engine.moderate_output(answer)
                 guardrail_flags['output_moderation'] = {
                     'passed': output_moderation['passed'],
@@ -470,7 +465,7 @@ async def query_rag(query: QueryRequest):
                 
                 guardrail_latency.labels(stage='output').observe(time.time() - output_start)
                 
-                # CRITICAL FIX: Check 'passed' field, not 'is_safe'
+                # Check if output moderation failed
                 if not output_moderation['passed']:
                     violations = output_moderation.get('violations', [])
                     
