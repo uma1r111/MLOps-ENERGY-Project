@@ -25,3 +25,6 @@ lib/
 monitoring/evidently_drift_report.html
 bentoml_forecast_output.csv
 notes.txt
+
+# Ignore FAISS index data
+data/faiss_index/
