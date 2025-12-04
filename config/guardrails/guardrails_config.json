@@ -1,0 +1,22 @@
+{
+  "input": {
+    "enable_pii_detection": true,
+    "enable_prompt_injection_filter": true,
+    "enable_content_filter": true,
+    "max_input_length": 4096
+  },
+  "output": {
+    "enable_toxicity_filter": true,
+    "enable_hallucination_filter": true,
+    "toxicity_threshold": 0.7,
+    "max_output_length": 2048
+  },
+  "policies": {
+    "block_on_violation": true,
+    "log_all_events": true
+  },
+  "monitoring": {
+    "enable_prometheus": true,
+    "metrics_port": 9090
+  }
+}

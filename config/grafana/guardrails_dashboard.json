@@ -1,0 +1,53 @@
+{
+  "dashboard": {
+    "title": "Guardrails Monitoring",
+    "tags": ["guardrails", "safety", "llm"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Validation Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(guardrail_validations_total[5m])",
+            "legendFormat": "{{validation_type}} - {{result}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Violation Rate by Type",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(guardrail_violations_total[5m])",
+            "legendFormat": "{{violation_type}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Average Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(guardrail_latency_seconds_sum[5m]) / rate(guardrail_latency_seconds_count[5m])",
+            "legendFormat": "{{operation}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "PII Detections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(pii_detections_total[5m])",
+            "legendFormat": "{{entity_type}}"
+          }
+        ]
+      }
+    ]
+  }
+}
