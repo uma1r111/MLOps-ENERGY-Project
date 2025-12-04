@@ -1,13 +1,14 @@
 """
 Input validation filters including PII detection and prompt injection filtering.
-TRULY FIXED VERSION: Tested patterns that actually work.
+Enhanced version with robust PII detection using both Presidio and regex fallbacks.
 """
 
 import logging
 import re
-from typing import Dict, Any, List
-from presidio_analyzer import AnalyzerEngine
+from typing import Dict, Any, List, Tuple
+from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
 from presidio_anonymizer import AnonymizerEngine
+from presidio_anonymizer.entities import OperatorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class InputValidator:
     """Validates and sanitizes user inputs."""
     
-    # TESTED prompt injection patterns - these actually work!
+    # Prompt injection patterns
     INJECTION_PATTERNS = [
         # Instruction manipulation - tested patterns
         r'ignore.*previous.*instructions?',
@@ -88,6 +89,29 @@ class InputValidator:
         r'clear.*previous',
     ]
     
+    # Regex patterns for PII fallback detection
+    PII_REGEX_PATTERNS = {
+        'EMAIL': [
+            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+        ],
+        'PHONE': [
+            r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b',  # 555-123-4567 or 5551234567
+            r'\(\d{3}\)\s*\d{3}[-.\s]?\d{4}\b',     # (555) 123-4567
+            r'\+1[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b',  # +1-555-123-4567
+            r'\b\d{10}\b',  # 5551234567 (10 digits)
+        ],
+        'SSN': [
+            r'\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b',  # 123-45-6789
+        ],
+        'CREDIT_CARD': [
+            r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b',  # 4532-1234-5678-9010
+            r'\b\d{15,16}\b',  # 15-16 digit sequences
+        ],
+        'US_ADDRESS': [
+            r'\b\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|Court|Ct|Place|Pl)[,.]?\s+[A-Za-z\s]+[,.]?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?\b',
+        ],
+    }
+    
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize Input Validator.
@@ -100,7 +124,7 @@ class InputValidator:
         self.enable_injection = config.get('enable_prompt_injection_filter', True)
         self.max_length = config.get('max_input_length', 4096)
         
-        # Compile regex patterns for better performance
+        # Compile regex patterns for prompt injection
         self.compiled_patterns = []
         for pattern in self.INJECTION_PATTERNS:
             try:
@@ -110,15 +134,94 @@ class InputValidator:
         
         logger.info(f"Compiled {len(self.compiled_patterns)} injection detection patterns")
         
-        # Initialize PII detection
+        # Compile PII regex patterns
+        self.compiled_pii_patterns = {}
+        for pii_type, patterns in self.PII_REGEX_PATTERNS.items():
+            self.compiled_pii_patterns[pii_type] = []
+            for pattern in patterns:
+                try:
+                    self.compiled_pii_patterns[pii_type].append(
+                        re.compile(pattern, re.IGNORECASE)
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to compile PII pattern '{pattern}': {e}")
+        
+        # Initialize PII detection with Presidio
         if self.enable_pii:
             try:
                 self.pii_analyzer = AnalyzerEngine()
                 self.pii_anonymizer = AnonymizerEngine()
-                logger.info("PII detection initialized")
+                
+                # Add custom recognizers for better detection
+                self._add_custom_recognizers()
+                
+                logger.info("PII detection initialized with Presidio")
             except Exception as e:
-                logger.warning(f"Failed to initialize PII detection: {e}")
-                self.enable_pii = False
+                logger.warning(f"Failed to initialize Presidio: {e}")
+                logger.info("Will use regex-based PII detection as fallback")
+                self.pii_analyzer = None
+                self.pii_anonymizer = None
+    
+    def _add_custom_recognizers(self):
+        """Add custom pattern recognizers to Presidio for better detection."""
+        if not self.pii_analyzer:
+            return
+        
+        # Phone number recognizer with multiple formats
+        phone_patterns = [
+            Pattern(name="phone_with_dashes", regex=r'\b\d{3}-\d{3}-\d{4}\b', score=0.85),
+            Pattern(name="phone_with_parens", regex=r'\(\d{3}\)\s*\d{3}[-.]?\d{4}\b', score=0.85),
+            Pattern(name="phone_international", regex=r'\+1[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b', score=0.85),
+            Pattern(name="phone_plain", regex=r'\b\d{10}\b', score=0.7),
+        ]
+        phone_recognizer = PatternRecognizer(
+            supported_entity="PHONE_NUMBER",
+            patterns=phone_patterns,
+            context=["phone", "call", "contact", "reach", "number"]
+        )
+        self.pii_analyzer.registry.add_recognizer(phone_recognizer)
+        
+        # Enhanced email recognizer
+        email_patterns = [
+            Pattern(
+                name="email_pattern",
+                regex=r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+                score=0.9
+            ),
+        ]
+        email_recognizer = PatternRecognizer(
+            supported_entity="EMAIL_ADDRESS",
+            patterns=email_patterns,
+            context=["email", "e-mail", "mail", "contact"]
+        )
+        self.pii_analyzer.registry.add_recognizer(email_recognizer)
+        
+        # SSN recognizer
+        ssn_patterns = [
+            Pattern(name="ssn_dashes", regex=r'\b\d{3}-\d{2}-\d{4}\b', score=0.85),
+            Pattern(name="ssn_spaces", regex=r'\b\d{3}\s\d{2}\s\d{4}\b', score=0.85),
+        ]
+        ssn_recognizer = PatternRecognizer(
+            supported_entity="US_SSN",
+            patterns=ssn_patterns,
+            context=["ssn", "social security"]
+        )
+        self.pii_analyzer.registry.add_recognizer(ssn_recognizer)
+        
+        # Credit card recognizer
+        cc_patterns = [
+            Pattern(
+                name="credit_card_dashes",
+                regex=r'\b\d{4}[-\s]\d{4}[-\s]\d{4}[-\s]\d{4}\b',
+                score=0.85
+            ),
+        ]
+        cc_recognizer = PatternRecognizer(
+            supported_entity="CREDIT_CARD",
+            patterns=cc_patterns,
+            context=["card", "credit", "payment", "pay"]
+        )
+        self.pii_analyzer.registry.add_recognizer(cc_recognizer)
     
     def validate(self, user_input: str) -> Dict[str, Any]:
         """
@@ -191,9 +294,46 @@ class InputValidator:
         
         return result
     
+    def _detect_pii_with_regex(self, text: str) -> Tuple[List[Dict[str, Any]], str]:
+        """
+        Fallback PII detection using regex patterns.
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Tuple of (entities list, anonymized text)
+        """
+        entities = []
+        anonymized_text = text
+        replacements = []  # Store replacements to apply in reverse order
+        
+        # Detect and collect all PII matches
+        for pii_type, patterns in self.compiled_pii_patterns.items():
+            for pattern in patterns:
+                for match in pattern.finditer(text):
+                    entities.append({
+                        'type': pii_type,
+                        'score': 0.85,
+                        'start': match.start(),
+                        'end': match.end(),
+                        'text': match.group()
+                    })
+                    replacements.append((match.start(), match.end(), pii_type))
+        
+        # Sort replacements by start position (reverse order for safe replacement)
+        replacements.sort(key=lambda x: x[0], reverse=True)
+        
+        # Apply anonymization
+        for start, end, pii_type in replacements:
+            mask = f"<{pii_type}>"
+            anonymized_text = anonymized_text[:start] + mask + anonymized_text[end:]
+        
+        return entities, anonymized_text
+    
     def _detect_pii(self, text: str) -> Dict[str, Any]:
         """
-        Detect and anonymize PII in text.
+        Detect and anonymize PII in text using Presidio or regex fallback.
         
         Args:
             text: Input text
@@ -202,59 +342,102 @@ class InputValidator:
             Dictionary with detection results
         """
         try:
-            # Analyze for PII with lower threshold for better detection
-            results = self.pii_analyzer.analyze(
-                text=text,
-                language='en',
-                entities=[
-                    'PHONE_NUMBER',
-                    'EMAIL_ADDRESS',
-                    'CREDIT_CARD',
-                    'PERSON',
-                    'LOCATION',
-                    'US_SSN',
-                    'US_PASSPORT',
-                    'US_DRIVER_LICENSE',
-                ],
-                score_threshold=0.35  # Lower threshold = more sensitive
-            )
-            
-            detected = len(results) > 0
-            entities = [
-                {
-                    'type': result.entity_type,
-                    'score': result.score,
-                    'start': result.start,
-                    'end': result.end,
-                    'text': text[result.start:result.end]
+            # Try Presidio first if available
+            if self.pii_analyzer and self.pii_anonymizer:
+                return self._detect_pii_with_presidio(text)
+            else:
+                # Fallback to regex
+                entities, anonymized_text = self._detect_pii_with_regex(text)
+                return {
+                    'detected': len(entities) > 0,
+                    'entities': entities,
+                    'anonymized_text': anonymized_text
                 }
-                for result in results
-            ]
-            
-            # Anonymize if PII detected
-            anonymized_text = text
-            if detected:
-                anonymized_result = self.pii_anonymizer.anonymize(
-                    text=text,
-                    analyzer_results=results
-                )
-                anonymized_text = anonymized_result.text
                 
-                logger.debug(f"PII anonymization: '{text}' -> '{anonymized_text}'")
-            
-            return {
-                'detected': detected,
-                'entities': entities,
-                'anonymized_text': anonymized_text
-            }
-            
         except Exception as e:
             logger.error(f"Error in PII detection: {e}", exc_info=True)
-            return {
-                'detected': False,
-                'entities': [],
-                'anonymized_text': text
+            # Final fallback to regex
+            try:
+                entities, anonymized_text = self._detect_pii_with_regex(text)
+                return {
+                    'detected': len(entities) > 0,
+                    'entities': entities,
+                    'anonymized_text': anonymized_text
+                }
+            except Exception as e2:
+                logger.error(f"Regex fallback also failed: {e2}", exc_info=True)
+                return {
+                    'detected': False,
+                    'entities': [],
+                    'anonymized_text': text
+                }
+    
+    def _detect_pii_with_presidio(self, text: str) -> Dict[str, Any]:
+        """
+        Detect and anonymize PII using Presidio.
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Dictionary with detection results
+        """
+        # Analyze for PII with lower threshold for better detection
+        results = self.pii_analyzer.analyze(
+            text=text,
+            language='en',
+            entities=[
+                'PHONE_NUMBER',
+                'EMAIL_ADDRESS',
+                'CREDIT_CARD',
+                'PERSON',
+                'LOCATION',
+                'US_SSN',
+                'US_PASSPORT',
+                'US_DRIVER_LICENSE',
+            ],
+            score_threshold=0.35  # Lower threshold = more sensitive
+        )
+        
+        detected = len(results) > 0
+        entities = [
+            {
+                'type': result.entity_type,
+                'score': result.score,
+                'start': result.start,
+                'end': result.end,
+                'text': text[result.start:result.end]
             }
+            for result in results
+        ]
+        
+        # Anonymize if PII detected
+        anonymized_text = text
+        if detected:
+            anonymized_result = self.pii_anonymizer.anonymize(
+                text=text,
+                analyzer_results=results
+            )
+            anonymized_text = anonymized_result.text
+            
+            logger.debug(f"PII anonymization: '{text}' -> '{anonymized_text}'")
+        
+        # If Presidio didn't find anything, try regex as backup
+        if not detected:
+            regex_entities, regex_anonymized = self._detect_pii_with_regex(text)
+            if regex_entities:
+                logger.info("Presidio missed PII, caught by regex fallback")
+                return {
+                    'detected': True,
+                    'entities': regex_entities,
+                    'anonymized_text': regex_anonymized
+                }
+        
+        return {
+            'detected': detected,
+            'entities': entities,
+            'anonymized_text': anonymized_text
+        }
     
     def _detect_prompt_injection(self, text: str) -> Dict[str, Any]:
         """
