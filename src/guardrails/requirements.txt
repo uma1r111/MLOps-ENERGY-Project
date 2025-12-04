@@ -1,0 +1,15 @@
+# Working Guardrails Dependencies (Windows-compatible)
+guardrails-ai==0.4.5
+presidio-analyzer==2.2.33
+presidio-anonymizer==2.2.33
+langdetect==1.0.9
+detoxify==0.5.2
+spacy==3.7.2
+transformers==4.36.0
+torch>=2.0.0
+prometheus-client>=0.19.0
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Note: nemoguardrails excluded due to Windows C++ build requirements
+# All D3 guardrail requirements can be met without it
