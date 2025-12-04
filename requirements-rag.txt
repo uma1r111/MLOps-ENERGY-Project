@@ -1,0 +1,35 @@
+# -----------------------
+# Working RAG + Gemini Setup (NO conflicts)
+# -----------------------
+
+# LangChain (compatible with langchain-google-genai)
+langchain==0.1.20
+langchain-community==0.0.38
+
+# Google Gemini
+langchain-google-genai==1.0.3
+google-generativeai==0.5.4
+
+# RAG Embeddings
+fastembed==0.2.2
+faiss-cpu==1.8.0
+pypdf==4.0.1
+
+# API
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.7
+
+# Utils
+python-dotenv==1.0.1
+prometheus-client==0.20.0
+tqdm==4.66.4
+numpy==1.26.4
+
+# ONNX (for fastembed)
+onnxruntime==1.17.1
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+httpx==0.25.2
