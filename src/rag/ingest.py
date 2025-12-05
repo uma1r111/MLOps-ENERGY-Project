@@ -1,6 +1,6 @@
 """
-Document Ingestion Pipeline - FastEmbed + Google Gemini
-Loads documents, chunks them, creates embeddings with FastEmbed (local), and builds FAISS index.
+Document Ingestion Pipeline - LangChain + FastEmbed + Google Gemini
+Loads documents, chunks them with LangChain, creates embeddings with FastEmbed
 """
 import os
 import sys
@@ -9,9 +9,14 @@ from typing import List
 import logging
 import pickle
 
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain_community.document_loaders import (
+    PyPDFLoader,
+    TextLoader,
+    DirectoryLoader,
+    UnstructuredMarkdownLoader
+)
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_core.documents import Document
 from fastembed import TextEmbedding
 import numpy as np
 import faiss
@@ -35,7 +40,16 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentIngestion:
-    """Handles document loading, chunking, and indexing with FastEmbed"""
+    """
+    Enhanced document ingestion with LangChain loaders.
+    
+    Features:
+    - Multiple document formats (PDF, TXT, MD, DOCX)
+    - Smart chunking with RecursiveCharacterTextSplitter
+    - FastEmbed for local embeddings
+    - FAISS for vector storage
+    - LangChain Document format
+    """
     
     def __init__(
         self,
@@ -44,21 +58,13 @@ class DocumentIngestion:
         chunk_size: int = CHUNK_SIZE,
         chunk_overlap: int = CHUNK_OVERLAP
     ):
-        """
-        Initialize the ingestion pipeline.
-        
-        Args:
-            docs_path: Path to documents folder
-            index_path: Path to save FAISS index
-            chunk_size: Size of text chunks
-            chunk_overlap: Overlap between chunks
-        """
+        """Initialize the ingestion pipeline"""
         self.docs_path = docs_path
         self.index_path = index_path
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         
-        # Initialize FastEmbed (local, no API key needed)
+        # Initialize FastEmbed
         logger.info(f"Initializing FastEmbed: {FASTEMBED_MODEL}")
         self.embedding_model = TextEmbedding(model_name=FASTEMBED_MODEL)
         logger.info("✓ FastEmbed initialized (running locally)")
@@ -67,43 +73,52 @@ class DocumentIngestion:
     
     def load_documents(self) -> List[Document]:
         """
-        Load all documents from the documents folder.
-        Supports PDF and TXT files.
+        Load documents using LangChain loaders.
+        
+        Supports: PDF, TXT, MD, DOCX
         
         Returns:
-            List of Document objects
+            List of LangChain Document objects
         """
         documents = []
         
         if not os.path.exists(self.docs_path):
             raise FileNotFoundError(f"Documents path not found: {self.docs_path}")
         
-        files = os.listdir(self.docs_path)
+        files = [f for f in os.listdir(self.docs_path) if not f.startswith('.')]
         if not files:
             raise ValueError(f"No documents found in {self.docs_path}")
         
         logger.info(f"Found {len(files)} files in {self.docs_path}")
+        logger.info("=" * 60)
         
         for filename in files:
             filepath = os.path.join(self.docs_path, filename)
             
             try:
                 if filename.endswith('.pdf'):
-                    logger.info(f"Loading PDF: {filename}")
+                    logger.info(f"📄 Loading PDF: {filename}")
                     loader = PyPDFLoader(filepath)
                     docs = loader.load()
                     documents.extend(docs)
-                    logger.info(f"  ✓ Loaded {len(docs)} pages from {filename}")
+                    logger.info(f"  ✓ Loaded {len(docs)} pages")
                 
                 elif filename.endswith('.txt'):
-                    logger.info(f"Loading TXT: {filename}")
+                    logger.info(f"📝 Loading TXT: {filename}")
                     loader = TextLoader(filepath, encoding='utf-8')
                     docs = loader.load()
                     documents.extend(docs)
-                    logger.info(f"  ✓ Loaded {filename}")
+                    logger.info(f"  ✓ Loaded {len(docs)} documents")
+                
+                elif filename.endswith('.md'):
+                    logger.info(f"📋 Loading Markdown: {filename}")
+                    loader = UnstructuredMarkdownLoader(filepath)
+                    docs = loader.load()
+                    documents.extend(docs)
+                    logger.info(f"  ✓ Loaded {len(docs)} documents")
                 
                 else:
-                    logger.warning(f"  ✗ Skipping unsupported file: {filename}")
+                    logger.warning(f"  ⚠️  Skipping unsupported file: {filename}")
             
             except Exception as e:
                 logger.error(f"  ✗ Error loading {filename}: {str(e)}")
@@ -112,12 +127,13 @@ class DocumentIngestion:
         if not documents:
             raise ValueError("No documents were successfully loaded!")
         
-        logger.info(f"Total documents loaded: {len(documents)}")
+        logger.info("=" * 60)
+        logger.info(f"✓ Total documents loaded: {len(documents)}")
         return documents
     
     def chunk_documents(self, documents: List[Document]) -> List[Document]:
         """
-        Split documents into chunks for better retrieval.
+        Chunk documents using LangChain's RecursiveCharacterTextSplitter.
         
         Args:
             documents: List of Document objects
@@ -127,21 +143,31 @@ class DocumentIngestion:
         """
         logger.info(f"Chunking {len(documents)} documents...")
         
+        # Create text splitter with optimal settings
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
             length_function=len,
-            separators=["\n\n", "\n", " ", ""]
+            separators=["\n\n", "\n", ". ", " ", ""],
+            is_separator_regex=False
         )
         
+        # Split documents
         chunks = text_splitter.split_documents(documents)
-        logger.info(f"Created {len(chunks)} chunks")
+        
+        # Add chunk metadata
+        for i, chunk in enumerate(chunks):
+            chunk.metadata["chunk_id"] = i
+            chunk.metadata["chunk_size"] = len(chunk.page_content)
+        
+        logger.info(f"✓ Created {len(chunks)} chunks")
+        logger.info(f"  Avg chunk size: {np.mean([c.metadata['chunk_size'] for c in chunks]):.0f} chars")
         
         return chunks
     
     def create_embeddings(self, texts: List[str]) -> np.ndarray:
         """
-        Create embeddings using FastEmbed (local, fast).
+        Create embeddings using FastEmbed (local).
         
         Args:
             texts: List of text strings
@@ -151,7 +177,7 @@ class DocumentIngestion:
         """
         logger.info(f"Generating embeddings for {len(texts)} texts with FastEmbed...")
         
-        # FastEmbed returns a generator, convert to list of arrays
+        # FastEmbed returns a generator
         embeddings = list(self.embedding_model.embed(texts))
         embeddings_array = np.array(embeddings, dtype=np.float32)
         
@@ -160,14 +186,14 @@ class DocumentIngestion:
     
     def create_index(self) -> tuple:
         """
-        Create FAISS vector store index from documents using FastEmbed.
+        Create FAISS index with LangChain documents.
         
         Returns:
             Tuple of (FAISS index, document chunks)
         """
         logger.info("=" * 60)
-        logger.info("Starting Document Ingestion Pipeline")
-        logger.info("FastEmbed (local) + Google Gemini")
+        logger.info("🚀 Starting Document Ingestion Pipeline")
+        logger.info("LangChain + FastEmbed + Google Gemini")
         logger.info("=" * 60)
         
         # Step 1: Load documents
@@ -176,10 +202,10 @@ class DocumentIngestion:
         # Step 2: Chunk documents
         chunks = self.chunk_documents(documents)
         
-        # Step 3: Extract texts for embedding
+        # Step 3: Extract texts
         texts = [doc.page_content for doc in chunks]
         
-        # Step 4: Create embeddings with FastEmbed
+        # Step 4: Create embeddings
         embeddings = self.create_embeddings(texts)
         
         # Step 5: Create FAISS index
@@ -190,7 +216,9 @@ class DocumentIngestion:
         index = faiss.IndexFlatL2(dimension)
         index.add(embeddings)
         
-        logger.info(f"✓ FAISS index created: {index.ntotal} vectors, {dimension} dimensions")
+        logger.info(f"✓ FAISS index created:")
+        logger.info(f"  - Vectors: {index.ntotal}")
+        logger.info(f"  - Dimensions: {dimension}")
         
         # Step 6: Save index and documents
         logger.info(f"Saving index to {self.index_path}...")
@@ -200,45 +228,73 @@ class DocumentIngestion:
             # Save FAISS index
             faiss.write_index(index, os.path.join(self.index_path, "index.faiss"))
             
-            # Save documents metadata
+            # Save LangChain documents
             with open(os.path.join(self.index_path, "documents.pkl"), "wb") as f:
                 pickle.dump(chunks, f)
             
-            logger.info(f"✓ Index and documents saved to {self.index_path}")
+            # Save metadata
+            metadata = {
+                "num_documents": len(documents),
+                "num_chunks": len(chunks),
+                "embedding_model": FASTEMBED_MODEL,
+                "chunk_size": self.chunk_size,
+                "chunk_overlap": self.chunk_overlap,
+                "dimension": dimension
+            }
+            
+            with open(os.path.join(self.index_path, "metadata.pkl"), "wb") as f:
+                pickle.dump(metadata, f)
+            
+            logger.info(f"✓ Index saved to {self.index_path}")
+        
         except Exception as e:
             logger.error(f"✗ Error saving index: {str(e)}")
             raise
         
         logger.info("=" * 60)
-        logger.info("Ingestion Pipeline Completed Successfully!")
+        logger.info("✅ Ingestion Pipeline Completed Successfully!")
         logger.info("=" * 60)
         
         return index, chunks
     
-    def test_retrieval(self, index, chunks: List[Document], query: str = "What is energy efficiency?"):
+    def test_retrieval(
+        self,
+        index,
+        chunks: List[Document],
+        query: str = "What is energy efficiency?"
+    ):
         """
-        Test the retrieval system with a sample query.
+        Test retrieval with a sample query.
         
         Args:
             index: FAISS index
             chunks: List of document chunks
             query: Test query string
         """
-        logger.info(f"\nTesting retrieval with query: '{query}'")
+        logger.info(f"\n🔍 Testing retrieval with query: '{query}'")
         
         # Create query embedding
-        query_embedding = np.array(list(self.embedding_model.embed([query])), dtype=np.float32)
+        query_embedding = np.array(
+            list(self.embedding_model.embed([query])),
+            dtype=np.float32
+        )
         
         # Search
         k = 3
         distances, indices = index.search(query_embedding, k)
         
         logger.info(f"Retrieved {len(indices[0])} documents:")
+        logger.info("-" * 60)
+        
         for i, idx in enumerate(indices[0], 1):
             doc = chunks[idx]
-            logger.info(f"\n--- Result {i} (distance: {distances[0][i-1]:.4f}) ---")
+            score = 1 / (1 + distances[0][i-1])  # Convert L2 to similarity
+            
+            logger.info(f"\n📄 Result {i} (score: {score:.3f})")
             logger.info(f"Source: {doc.metadata.get('source', 'unknown')}")
-            logger.info(f"Content preview: {doc.page_content[:200]}...")
+            logger.info(f"Preview: {doc.page_content[:200]}...")
+        
+        logger.info("-" * 60)
 
 
 def main():
@@ -253,9 +309,16 @@ def main():
         # Test retrieval
         ingestion.test_retrieval(index, chunks)
         
-        print("\n✅ SUCCESS! Your RAG ingestion pipeline is ready!")
+        print("\n" + "=" * 60)
+        print("✅ SUCCESS! Your RAG ingestion pipeline is ready!")
+        print("=" * 60)
         print(f"📁 FAISS index saved to: {INDEX_PATH}")
-        print("🚀 Next step: Run the API with 'python src/app.py'")
+        print(f"📊 Total chunks: {len(chunks)}")
+        print(f"🔧 Embedding model: {FASTEMBED_MODEL}")
+        print("\n🚀 Next steps:")
+        print("  1. Run the API: python src/app.py")
+        print("  2. Or run the UI: python src/ui.py")
+        print("=" * 60)
         
     except Exception as e:
         logger.error(f"\n❌ Pipeline failed: {str(e)}")
