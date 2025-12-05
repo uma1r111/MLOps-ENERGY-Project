@@ -2,10 +2,15 @@
 FastAPI RAG Application - LangChain + FastEmbed + Google Gemini + LangSmith
 Enhanced with LangChain chains and LangSmith token monitoring
 """
-import os
 import sys
 import time
 import logging
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
 from pathlib import Path
 from typing import Optional, List
 from contextlib import asynccontextmanager
@@ -26,7 +31,8 @@ from src.rag.config import (
     TOP_K,
     TEMPERATURE,
     MAX_TOKENS,
-    LANGSMITH_API_KEY
+    LANGSMITH_API_KEY,
+    LANGSMITH_PROJECT
 )
 from src.rag.custom_retriever import create_retriever
 from src.rag.rag_chain import create_rag_chain

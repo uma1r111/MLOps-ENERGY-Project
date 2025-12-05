@@ -96,14 +96,6 @@ Context:
     def _build_chain(self):
         """Build the RAG chain with LangChain LCEL"""
         
-        # Format documents
-        def format_docs(docs: List[Document]) -> str:
-            """Format documents for context"""
-            return "\n\n".join([
-                f"Source: {doc.metadata.get('source', 'unknown')}\n{doc.page_content}"
-                for doc in docs
-            ])
-        
         # Create document chain
         document_chain = create_stuff_documents_chain(
             llm=self.llm,
@@ -232,16 +224,34 @@ Context:
     def invoke(self, query: str, **kwargs) -> Dict[str, Any]:
         """Invoke with conversation history"""
         
-        # Add history to kwargs
-        kwargs["chat_history"] = self.history
+        # Convert history to message format
+        from langchain_core.messages import HumanMessage, AIMessage
         
-        result = super().invoke(query, **kwargs)
+        chat_history = []
+        for msg in self.history:
+            if msg["role"] == "human":
+                chat_history.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "assistant":
+                chat_history.append(AIMessage(content=msg["content"]))
+        
+        # Invoke chain with history
+        result = self.chain.invoke({
+            "input": query,
+            "chat_history": chat_history
+        })
+        
+        # Extract response
+        response = {
+            "answer": result["answer"],
+            "source_documents": result.get("context", []),
+            "query": query
+        }
         
         # Update history
         self.history.append({"role": "human", "content": query})
-        self.history.append({"role": "assistant", "content": result["answer"]})
+        self.history.append({"role": "assistant", "content": response["answer"]})
         
-        return result
+        return response
     
     def clear_history(self):
         """Clear conversation history"""
