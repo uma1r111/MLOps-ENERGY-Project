@@ -2,8 +2,15 @@
 Evidently Monitoring for RAG Data Drift
 Monitors embedding distribution and retrieval quality
 """
-import os
 import sys
+import os
+from pathlib import Path
+
+# Add project root to sys.path
+PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
+sys.path.insert(0, str(PROJECT_ROOT))
+
+
 import pickle
 import numpy as np
 import pandas as pd
