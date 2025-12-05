@@ -2,10 +2,15 @@
 Gradio UI for RAG System - LangChain + LangSmith Edition
 Beautiful, modern interface with conversation history and source viewing
 """
-import os
 import sys
 import time
 import logging
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
 from pathlib import Path
 from typing import List, Tuple, Optional
 

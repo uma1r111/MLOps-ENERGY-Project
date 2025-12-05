@@ -1,66 +1,110 @@
 """
-Quick RAG system test script - FastEmbed + Google Gemini
+Test script for RAG API
+Tests the FastAPI endpoints with sample queries
 """
 import requests
 import json
+import sys
 
-BASE_URL = "http://localhost:8000"
+# API Configuration
+API_BASE_URL = "http://localhost:8000"
 
 def test_health():
     """Test health endpoint"""
     print("🔍 Testing health endpoint...")
-    response = requests.get(f"{BASE_URL}/health")
-    print(f"Status: {response.status_code}")
-    data = response.json()
-    print(f"Response: {json.dumps(data, indent=2)}\n")
+    
+    try:
+        response = requests.get(f"{API_BASE_URL}/health")
+        print(f"Status: {response.status_code}")
+        print(f"Response: {json.dumps(response.json(), indent=2)}")
+        print()
+        return response.status_code == 200
+    except Exception as e:
+        print(f"❌ Health check failed: {str(e)}")
+        return False
 
-def test_query(question):
+def test_query(question: str):
     """Test query endpoint"""
     print(f"🔍 Testing query: '{question}'")
-    response = requests.post(
-        f"{BASE_URL}/query",
-        json={"question": question, "top_k": 3}
-    )
     
-    if response.status_code == 200:
-        data = response.json()
-        print(f"✅ Success!")
-        print(f"\n🤖 LLM: {data.get('model', 'unknown')}")
-        print(f"📊 Embeddings: {data.get('embedding_model', 'unknown')}")
-        print(f"\n📝 Answer:\n{data['answer']}\n")
-        print(f"📚 Sources ({len(data['sources'])}):")
-        for i, source in enumerate(data['sources'], 1):
-            print(f"  {i}. {source['source']}")
-        print(f"\n⏱️  Latency: {data['latency']}s")
-        print(f"🔢 Tokens used: {data['tokens_used']}\n")
-    else:
-        print(f"❌ Error: {response.status_code}")
-        print(f"Response: {response.text}\n")
+    try:
+        payload = {
+            "question": question,
+            "top_k": 3,
+            "include_sources": True
+        }
+        
+        response = requests.post(
+            f"{API_BASE_URL}/query",
+            json=payload,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        if response.status_code != 200:
+            print(f"❌ Query failed with status {response.status_code}")
+            print(f"Error: {response.text}")
+            return False
+        
+        result = response.json()
+        
+        print("✅ Success!")
+        print(f"🤖 LLM: {result['model']}")
+        print(f"📊 Embeddings: {result['embedding_model']}")
+        print(f"⏱️  Latency: {result['latency']}s")
+        
+        print(f"\n📝 Answer:\n{result['answer']}\n")
+        
+        if result.get('sources'):
+            print(f"📚 Sources ({len(result['sources'])}):")
+            for i, source in enumerate(result['sources'], 1):
+                # Access dictionary keys instead of object attributes
+                content = source.get('content', '')
+                source_name = source.get('source', 'unknown')
+                score = source.get('retrieval_score')
+                
+                print(f"\n{i}. {content[:200]}...")
+                print(f"   Source: {source_name}")
+                if score is not None:
+                    print(f"   Score: {score:.3f}")
+        
+        if result.get('langsmith_trace'):
+            print(f"\n📊 {result['langsmith_trace']}")
+        
+        print("\n" + "="*60 + "\n")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Query failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def main():
+    """Run tests"""
     print("=" * 60)
     print("RAG System Test - FastEmbed + Google Gemini")
-    print("=" * 60 + "\n")
+    print("=" * 60)
     
     # Test health
-    test_health()
+    if not test_health():
+        print("❌ Health check failed. Is the server running?")
+        print("Start it with: python src/app.py")
+        sys.exit(1)
     
     # Test queries
-    test_queries = [
+    queries = [
         "How can households reduce energy consumption cost?",
-        "How do wind turbines work?",
-        "What are the benefits of renewable energy?",
-        "Why do energy bills increase during summer and winter?",
-        "Does keeping a laptop plugged in all the time increase the bill?",
-        "What are the top 10 ways to reduce household electricity consumption?",
-        "How can I reduce AC usage without feeling hot?",
-        "Does unplugging appliances reduce electricity consumption?"
-        "How can I lower my energy bill without buying new appliances?"
+        "What are the benefits of solar panels?",
+        "What factors affect energy efficiency in buildings?"
     ]
     
-    for query in test_queries:
-        test_query(query)
-        print("-" * 60 + "\n")
+    for query in queries:
+        if not test_query(query):
+            break
+    
+    print("=" * 60)
+    print("✅ All tests completed!")
+    print("=" * 60)
 
 if __name__ == "__main__":
     main()
