@@ -1,0 +1,1 @@
+{"event_type": "input_validation", "timestamp": "2025-12-05T08:19:34.003303", "result": {"passed": true, "violations": [], "sanitized_input": "What factors affect solar panel efficiency?", "pii_detected": [], "injection_detected": false, "metadata": {}, "timestamp": "2025-12-05T08:19:33.991304", "latency_ms": 9.56869125366211}}
