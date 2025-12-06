@@ -6,7 +6,7 @@ UK energy demand forecasting system with real-time monitoring and automated ML p
 
 *MLOps Pipeline Architecture*
 
-<img src="images/architecture.png" alt="MLOps Pipeline Architecture" width="750" />
+<img src="images/architecture-dig.png" alt="MLOps Pipeline Architecture" width="750" />
 
 The pipeline consists of six main stages:
 
