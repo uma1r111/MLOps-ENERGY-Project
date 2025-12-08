@@ -2,10 +2,10 @@
 A/B Testing System for RAG Prompts
 Tests multiple prompt variants and tracks performance
 """
+
 import random
-import time
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import json
@@ -16,30 +16,41 @@ from prometheus_client import Counter, Histogram, Gauge
 logger = logging.getLogger(__name__)
 
 # Prometheus metrics for A/B testing
-ab_test_queries = Counter('ab_test_queries_total', 'A/B test queries', ['variant', 'status'])
-ab_test_latency = Histogram('ab_test_latency_seconds', 'Latency by variant', ['variant'])
-ab_test_tokens = Counter('ab_test_tokens_total', 'Tokens by variant', ['variant', 'type'])
-ab_test_satisfaction = Histogram('ab_test_satisfaction_score', 'User satisfaction', ['variant'])
-ab_test_active_variant = Gauge('ab_test_active_variant', 'Current active variant', ['variant'])
+ab_test_queries = Counter(
+    "ab_test_queries_total", "A/B test queries", ["variant", "status"]
+)
+ab_test_latency = Histogram(
+    "ab_test_latency_seconds", "Latency by variant", ["variant"]
+)
+ab_test_tokens = Counter(
+    "ab_test_tokens_total", "Tokens by variant", ["variant", "type"]
+)
+ab_test_satisfaction = Histogram(
+    "ab_test_satisfaction_score", "User satisfaction", ["variant"]
+)
+ab_test_active_variant = Gauge(
+    "ab_test_active_variant", "Current active variant", ["variant"]
+)
 
 
 @dataclass
 class PromptVariant:
     """Represents a prompt variant for testing"""
+
     id: str
     name: str
     system_prompt: str
     temperature: float = 0.7
     max_tokens: int = 2048
     description: str = ""
-    
+
     def to_dict(self):
         return asdict(self)
 
 
 class PromptVariants:
     """Predefined prompt variants for A/B testing"""
-    
+
     CONTROL = PromptVariant(
         id="control",
         name="Control (Original)",
@@ -56,9 +67,9 @@ Guidelines:
 Context:
 {context}""",
         temperature=0.7,
-        description="Original prompt with balanced approach"
+        description="Original prompt with balanced approach",
     )
-    
+
     CONCISE = PromptVariant(
         id="concise",
         name="Concise Variant",
@@ -75,9 +86,9 @@ Context:
 {context}""",
         temperature=0.5,
         max_tokens=512,
-        description="Short, actionable responses optimized for quick reading"
+        description="Short, actionable responses optimized for quick reading",
     )
-    
+
     DETAILED = PromptVariant(
         id="detailed",
         name="Detailed Variant",
@@ -96,9 +107,9 @@ Context:
 {context}""",
         temperature=0.8,
         max_tokens=3072,
-        description="Comprehensive answers with examples and detailed explanations"
+        description="Comprehensive answers with examples and detailed explanations",
     )
-    
+
     CONVERSATIONAL = PromptVariant(
         id="conversational",
         name="Conversational Variant",
@@ -116,9 +127,9 @@ Style:
 Context:
 {context}""",
         temperature=0.9,
-        description="Friendly, conversational tone for better engagement"
+        description="Friendly, conversational tone for better engagement",
     )
-    
+
     TECHNICAL = PromptVariant(
         id="technical",
         name="Technical Variant",
@@ -136,14 +147,20 @@ Approach:
 Context:
 {context}""",
         temperature=0.3,
-        description="Technical, precise answers for expert users"
+        description="Technical, precise answers for expert users",
     )
-    
+
     @classmethod
     def get_all_variants(cls) -> List[PromptVariant]:
         """Get all available variants"""
-        return [cls.CONTROL, cls.CONCISE, cls.DETAILED, cls.CONVERSATIONAL, cls.TECHNICAL]
-    
+        return [
+            cls.CONTROL,
+            cls.CONCISE,
+            cls.DETAILED,
+            cls.CONVERSATIONAL,
+            cls.TECHNICAL,
+        ]
+
     @classmethod
     def get_variant(cls, variant_id: str) -> Optional[PromptVariant]:
         """Get variant by ID"""
@@ -154,6 +171,7 @@ Context:
 @dataclass
 class ABTestResult:
     """Result from an A/B test query"""
+
     variant_id: str
     variant_name: str
     query: str
@@ -165,7 +183,7 @@ class ABTestResult:
     timestamp: str
     satisfaction_score: Optional[float] = None
     retrieval_scores: Optional[List[float]] = None
-    
+
     def to_dict(self):
         return asdict(self)
 
@@ -173,23 +191,23 @@ class ABTestResult:
 class ABTestingEngine:
     """
     A/B Testing engine for prompt variants.
-    
+
     Features:
     - Random variant assignment
     - Performance tracking per variant
     - Statistical comparison
     - Result logging
     """
-    
+
     def __init__(
         self,
         variants: Optional[List[PromptVariant]] = None,
         traffic_split: Optional[Dict[str, float]] = None,
-        results_file: str = "monitoring/ab_test_results.jsonl"
+        results_file: str = "monitoring/ab_test_results.jsonl",
     ):
         """
         Initialize A/B testing engine.
-        
+
         Args:
             variants: List of prompt variants to test (defaults to all)
             traffic_split: Dict of variant_id -> percentage (e.g., {"control": 0.5, "concise": 0.5})
@@ -197,37 +215,37 @@ class ABTestingEngine:
         """
         self.variants = variants or PromptVariants.get_all_variants()
         self.variant_map = {v.id: v for v in self.variants}
-        
+
         # Default to equal split
         if traffic_split is None:
             split = 1.0 / len(self.variants)
             self.traffic_split = {v.id: split for v in self.variants}
         else:
             self.traffic_split = traffic_split
-        
+
         self.results_file = results_file
         self._ensure_results_file()
-        
+
         # Update Prometheus gauge
         for variant in self.variants:
             ab_test_active_variant.labels(variant=variant.id).set(1)
-        
+
         logger.info(f"A/B Testing initialized with {len(self.variants)} variants")
         logger.info(f"Traffic split: {self.traffic_split}")
-    
+
     def _ensure_results_file(self):
         """Create results file if not exists"""
         os.makedirs(os.path.dirname(self.results_file), exist_ok=True)
         if not os.path.exists(self.results_file):
-            open(self.results_file, 'w').close()
-    
+            open(self.results_file, "w").close()
+
     def assign_variant(self, user_id: Optional[str] = None) -> PromptVariant:
         """
         Assign a variant to a user/query.
-        
+
         Args:
             user_id: Optional user ID for consistent assignment
-            
+
         Returns:
             Assigned prompt variant
         """
@@ -237,7 +255,7 @@ class ABTestingEngine:
         else:
             # Random assignment
             hash_val = random.random()
-        
+
         # Select variant based on traffic split
         cumulative = 0
         for variant_id, percentage in self.traffic_split.items():
@@ -246,136 +264,142 @@ class ABTestingEngine:
                 variant = self.variant_map[variant_id]
                 logger.info(f"Assigned variant: {variant.name} ({variant.id})")
                 return variant
-        
+
         # Fallback to control
-        return self.variant_map.get('control', self.variants[0])
-    
+        return self.variant_map.get("control", self.variants[0])
+
     def log_result(self, result: ABTestResult):
         """Log A/B test result"""
         # Update Prometheus metrics
-        ab_test_queries.labels(
-            variant=result.variant_id,
-            status='success'
-        ).inc()
-        
+        ab_test_queries.labels(variant=result.variant_id, status="success").inc()
+
         ab_test_latency.labels(variant=result.variant_id).observe(result.latency)
-        
-        ab_test_tokens.labels(
-            variant=result.variant_id,
-            type='input'
-        ).inc(result.tokens_input)
-        
-        ab_test_tokens.labels(
-            variant=result.variant_id,
-            type='output'
-        ).inc(result.tokens_output)
-        
+
+        ab_test_tokens.labels(variant=result.variant_id, type="input").inc(
+            result.tokens_input
+        )
+
+        ab_test_tokens.labels(variant=result.variant_id, type="output").inc(
+            result.tokens_output
+        )
+
         if result.satisfaction_score:
-            ab_test_satisfaction.labels(
-                variant=result.variant_id
-            ).observe(result.satisfaction_score)
-        
+            ab_test_satisfaction.labels(variant=result.variant_id).observe(
+                result.satisfaction_score
+            )
+
         # Write to file
-        with open(self.results_file, 'a') as f:
-            f.write(json.dumps(result.to_dict()) + '\n')
-        
+        with open(self.results_file, "a") as f:
+            f.write(json.dumps(result.to_dict()) + "\n")
+
         logger.info(f"Logged result for variant {result.variant_id}")
-    
+
     def get_variant_stats(self, variant_id: str) -> Dict:
         """Get statistics for a specific variant"""
         results = self.load_results()
-        variant_results = [r for r in results if r['variant_id'] == variant_id]
-        
+        variant_results = [r for r in results if r["variant_id"] == variant_id]
+
         if not variant_results:
             return {
-                'variant_id': variant_id,
-                'total_queries': 0,
-                'avg_latency': 0,
-                'avg_tokens': 0,
-                'total_cost': 0,
-                'avg_satisfaction': 0
+                "variant_id": variant_id,
+                "total_queries": 0,
+                "avg_latency": 0,
+                "avg_tokens": 0,
+                "total_cost": 0,
+                "avg_satisfaction": 0,
             }
-        
+
         return {
-            'variant_id': variant_id,
-            'total_queries': len(variant_results),
-            'avg_latency': sum(r['latency'] for r in variant_results) / len(variant_results),
-            'avg_tokens': sum(r['tokens_input'] + r['tokens_output'] for r in variant_results) / len(variant_results),
-            'total_cost': sum(r['cost'] for r in variant_results),
-            'avg_satisfaction': sum(r.get('satisfaction_score', 0) for r in variant_results if r.get('satisfaction_score')) / len([r for r in variant_results if r.get('satisfaction_score')]) if any(r.get('satisfaction_score') for r in variant_results) else 0
+            "variant_id": variant_id,
+            "total_queries": len(variant_results),
+            "avg_latency": sum(r["latency"] for r in variant_results)
+            / len(variant_results),
+            "avg_tokens": sum(
+                r["tokens_input"] + r["tokens_output"] for r in variant_results
+            )
+            / len(variant_results),
+            "total_cost": sum(r["cost"] for r in variant_results),
+            "avg_satisfaction": (
+                sum(
+                    r.get("satisfaction_score", 0)
+                    for r in variant_results
+                    if r.get("satisfaction_score")
+                )
+                / len([r for r in variant_results if r.get("satisfaction_score")])
+                if any(r.get("satisfaction_score") for r in variant_results)
+                else 0
+            ),
         }
-    
+
     def load_results(self) -> List[Dict]:
         """Load all test results"""
         results = []
         if os.path.exists(self.results_file):
-            with open(self.results_file, 'r') as f:
+            with open(self.results_file, "r") as f:
                 for line in f:
                     if line.strip():
                         results.append(json.loads(line))
         return results
-    
+
     def get_comparison_report(self) -> Dict:
         """Generate comparison report for all variants"""
         report = {
-            'timestamp': datetime.now().isoformat(),
-            'variants': {},
-            'winner': None
+            "timestamp": datetime.now().isoformat(),
+            "variants": {},
+            "winner": None,
         }
-        
+
         best_score = 0
         best_variant = None
-        
+
         for variant in self.variants:
             stats = self.get_variant_stats(variant.id)
-            report['variants'][variant.id] = {
-                'name': variant.name,
-                'description': variant.description,
-                'stats': stats,
-                'temperature': variant.temperature,
-                'max_tokens': variant.max_tokens
+            report["variants"][variant.id] = {
+                "name": variant.name,
+                "description": variant.description,
+                "stats": stats,
+                "temperature": variant.temperature,
+                "max_tokens": variant.max_tokens,
             }
-            
+
             # Simple scoring: balance speed, cost, and satisfaction
-            if stats['total_queries'] > 0:
+            if stats["total_queries"] > 0:
                 score = (
-                    (1 / (stats['avg_latency'] + 0.1)) * 0.3 +  # Speed (30%)
-                    (1 / (stats['total_cost'] / stats['total_queries'] + 0.001)) * 0.3 +  # Cost efficiency (30%)
-                    stats['avg_satisfaction'] * 0.4  # Satisfaction (40%)
+                    (1 / (stats["avg_latency"] + 0.1)) * 0.3  # Speed (30%)
+                    + (1 / (stats["total_cost"] / stats["total_queries"] + 0.001))
+                    * 0.3  # Cost efficiency (30%)
+                    + stats["avg_satisfaction"] * 0.4  # Satisfaction (40%)
                 )
-                
+
                 if score > best_score:
                     best_score = score
                     best_variant = variant.id
-        
-        report['winner'] = best_variant
+
+        report["winner"] = best_variant
         return report
 
 
 def create_ab_testing_engine(
     enabled_variants: Optional[List[str]] = None,
-    traffic_split: Optional[Dict[str, float]] = None
+    traffic_split: Optional[Dict[str, float]] = None,
 ) -> ABTestingEngine:
     """
     Factory function to create A/B testing engine.
-    
+
     Args:
         enabled_variants: List of variant IDs to enable (None = all)
         traffic_split: Custom traffic split
-        
+
     Returns:
         Configured ABTestingEngine
     """
     if enabled_variants:
         variants = [
-            PromptVariants.get_variant(vid) 
-            for vid in enabled_variants 
+            PromptVariants.get_variant(vid)
+            for vid in enabled_variants
             if PromptVariants.get_variant(vid)
         ]
     else:
         variants = PromptVariants.get_all_variants()
-    
-    return ABTestingEngine(
-        variants=variants,
-        traffic_split=traffic_split
-    )
+
+    return ABTestingEngine(variants=variants, traffic_split=traffic_split)

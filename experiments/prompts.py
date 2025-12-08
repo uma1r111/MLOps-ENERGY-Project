@@ -13,7 +13,6 @@ If the answer is not in the context, say you don't know.
 
 Context:
 {context}""",
-
     # --------------------------------------------------------------------------
     # STRATEGY 2: FEW-SHOT (Example-Driven)
     # Provides domain-specific Q&A examples to guide style and detail.
@@ -35,7 +34,6 @@ A: typically, heating and cooling (HVAC) systems are the largest energy consumer
 
 Context:
 {context}""",
-
     # --------------------------------------------------------------------------
     # STRATEGY 3: ADVANCED (Chain-of-Thought + Persona)
     # Persona: EnergyOps Expert.
@@ -50,5 +48,5 @@ Instructions:
 3. Formulate Answer: Provide a clear, concise answer derived from your reasoning.
 
 Context:
-{context}"""
+{context}""",
 }

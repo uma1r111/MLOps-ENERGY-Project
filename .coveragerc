@@ -1,0 +1,32 @@
+[run]
+source = src,experiments
+omit = 
+    */tests/*
+    */venv/*
+    */__pycache__/*
+    */site-packages/*
+    src/app.py
+    src/app_langsmith.py
+    src/ui.py
+    src/rag/rag_chain.py
+    src/rag/custom_retriever.py
+    src/rag/ingest.py
+    src/monitoring/*
+    src/guardrails/guardrail_engine.py
+    src/guardrails/filters/input_validator.py
+    src/guardrails/filters/output_moderator.py
+    src/guardrails/policies/policy_engine.py
+    src/guardrails/rag_integration.py
+    experiments/run_experiment.py
+
+[report]
+precision = 2
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
