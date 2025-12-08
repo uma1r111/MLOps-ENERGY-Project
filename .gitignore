@@ -25,6 +25,15 @@ lib/
 monitoring/evidently_drift_report.html
 bentoml_forecast_output.csv
 notes.txt
+monitoring\evidently_report.html
+monitoring\retrieval_metrics.csv
+monitoring\retrieval_quality_report.html
 
 # Ignore FAISS index data
 data/faiss_index/
+.env
+.fastembed_cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+EOF

@@ -1,0 +1,30 @@
+groups:
+  - name: guardrails
+    interval: 30s
+    rules:
+      - alert: HighViolationRate
+        expr: rate(guardrail_violations_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High guardrail violation rate"
+          description: "Violation rate is {{ $value }} per second"
+      
+      - alert: HighPIIDetectionRate
+        expr: rate(pii_detections_total[5m]) > 5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "High PII detection rate"
+          description: "PII detection rate is {{ $value }} per second"
+      
+      - alert: HighToxicityScore
+        expr: histogram_quantile(0.95, toxicity_score) > 0.8
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High toxicity in outputs"
+          description: "95th percentile toxicity score is {{ $value }}"
