@@ -107,7 +107,7 @@ jobs:
           tags: ${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
 
       - name: Show pushed image info
-        run: echo "Image pushed: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
+        run: echo "Image pushed - ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
 
   canary-deploy:
     name: Canary Deploy

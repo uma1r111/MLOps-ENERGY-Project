@@ -1,12 +1,10 @@
 ﻿# tests/conftest.py
 import os
 import sys
-import src.rag.config as rag_config
-import src.guardrails.filters.input_validator as iv_module
 from unittest.mock import MagicMock
 
 # ==============================
-# 1. Fake environment variables
+# 1. Fake environment variables FIRST (before any imports)
 # ==============================
 os.environ["GOOGLE_API_KEY"] = "FAKE_KEY"
 os.environ["LANGSMITH_API_KEY"] = "FAKE_KEY"
@@ -38,6 +36,7 @@ mock_modules = [
     "langchain.vectorstores",
     "langchain.embeddings",
     "langchain.chat_models",
+    "prometheus_client",
 ]
 for mod in mock_modules:
     sys.modules[mod] = MagicMock()
@@ -46,11 +45,14 @@ for mod in mock_modules:
 sys.modules["presidio_anonymizer.entities"] = MagicMock()
 
 # ==============================
-# 3. Patch RAGConfig and add module-level constants
+# 3. NOW import and patch RAGConfig (after env vars are set)
 # ==============================
+import src.rag.config as rag_config  # noqa: E402
 
 
 class DummyRAGConfig:
+    """Dummy RAG configuration for testing."""
+
     GOOGLE_API_KEY = os.environ["GOOGLE_API_KEY"]
     LANGSMITH_API_KEY = os.environ["LANGSMITH_API_KEY"]
     GEMINI_MODEL = os.environ["GEMINI_MODEL"]
@@ -78,7 +80,7 @@ class DummyRAGConfig:
 # Patch RAGConfig class
 rag_config.RAGConfig = DummyRAGConfig
 
-# Patch module-level constants for backward compatibility
+# Patch module-level constants
 for name in [
     "GOOGLE_API_KEY",
     "LANGSMITH_API_KEY",
@@ -101,12 +103,16 @@ for name in [
 ]:
     setattr(rag_config, name, getattr(DummyRAGConfig, name))
 
-# Create a dummy config instance
+# Recreate config instance with dummy values
 rag_config.config = DummyRAGConfig()
 
 # ==============================
-# 4. Mock Guardrails input_validator
+# 4. Mock Guardrails
 # ==============================
+try:
+    import src.guardrails.filters.input_validator as iv_module  # noqa: E402
 
-iv_module.OperatorConfig = MagicMock()
-iv_module.InputValidator = MagicMock()
+    iv_module.OperatorConfig = MagicMock()
+    iv_module.InputValidator = MagicMock()
+except Exception:
+    pass
