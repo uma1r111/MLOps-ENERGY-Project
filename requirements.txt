@@ -33,3 +33,10 @@ flask>=2.0
 bentoml
 tensorflow
 evidently>=0.4,<0.7
+
+# ---------------------
+# LangChain Packages
+# ---------------------
+langchain==0.1.53
+langchain-core==0.1.53
+langchain-community==0.0.13
