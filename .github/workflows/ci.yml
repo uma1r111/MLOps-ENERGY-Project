@@ -104,9 +104,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            ${{ env.DOCKER_IMAGE }}:latest
-            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+          tags: ${{ env.DOCKER_IMAGE }}:latest,${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
 
       - name: Show pushed image info
         run: echo "Image pushed: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
@@ -138,6 +136,5 @@ jobs:
           echo "Waiting for canary warmup..."
           sleep 10
           echo "Running smoke test (HTTP check) - replace with real endpoint"
-          # Replace URL below with your actual canary health endpoint
           # curl -f https://your-canary-host/health || exit 1
           echo "Smoke test passed (simulated)"
