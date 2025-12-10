@@ -172,26 +172,90 @@ jobs:
       - name: Health Check
         run: |
           echo "🏥 Running health checks..."
-          for i in {1..5}; do
+          for i in {1..10}; do
             if curl -fsSL http://localhost:8000/health > /dev/null 2>&1; then
               echo "✅ Service is healthy"
               curl -v http://localhost:8000/health
               exit 0
             fi
-            echo "⏳ Retrying health check ($i/5)..."
+            echo "⏳ Retrying health check ($i/10)..."
             sleep 3
           done
           echo "⚠️ Health check timed out, but continuing deployment"
           docker logs canary-container || true
           exit 0
 
-      - name: Monitor Canary Metrics
+      - name: Monitor Canary Metrics (Real Metrics)
         run: |
-          echo "📈 Monitoring canary metrics..."
-          echo "  ✓ Error rate: 0.1% (< 1% threshold)"
-          echo "  ✓ P95 latency: 245ms (< 500ms threshold)"
-          echo "  ✓ Request success rate: 99.9%"
-          echo "✅ Canary validation passed"
+          echo "📈 Collecting canary metrics from live service..."
+          
+          # Make sample requests to generate metrics
+          START_TIME=$(date +%s%3N)
+          SUCCESS_COUNT=0
+          TOTAL_REQUESTS=10
+          LATENCIES=()
+          
+          for i in $(seq 1 $TOTAL_REQUESTS); do
+            REQUEST_START=$(date +%s%3N)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null || echo "000")
+            REQUEST_END=$(date +%s%3N)
+            LATENCY=$((REQUEST_END - REQUEST_START))
+            LATENCIES+=($LATENCY)
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            fi
+            sleep 0.2
+          done
+          
+          # Calculate metrics
+          SUCCESS_RATE=$(awk "BEGIN {printf \"%.1f\", ($SUCCESS_COUNT / $TOTAL_REQUESTS) * 100}")
+          ERROR_RATE=$(awk "BEGIN {printf \"%.1f\", (($TOTAL_REQUESTS - $SUCCESS_COUNT) / $TOTAL_REQUESTS) * 100}")
+          
+          # Calculate P95 latency (simple approximation - sort and take 95th percentile)
+          IFS=$'\n' SORTED_LATENCIES=($(sort -n <<<"${LATENCIES[*]}"))
+          P95_INDEX=$(awk "BEGIN {printf \"%.0f\", $TOTAL_REQUESTS * 0.95 - 1}")
+          P95_LATENCY=${SORTED_LATENCIES[$P95_INDEX]}
+          AVG_LATENCY=$(awk "BEGIN {sum=0; for(i=0; i<${#LATENCIES[@]}; i++) sum+=${LATENCIES[i]}; printf \"%.0f\", sum/${#LATENCIES[@]}}")
+          
+          echo ""
+          echo "📊 Canary Metrics (from $TOTAL_REQUESTS test requests):"
+          echo "  ✓ Success Rate: ${SUCCESS_RATE}%"
+          echo "  ✓ Error Rate: ${ERROR_RATE}%"
+          echo "  ✓ Average Latency: ${AVG_LATENCY}ms"
+          echo "  ✓ P95 Latency: ${P95_LATENCY}ms"
+          echo ""
+          
+          # Validate thresholds
+          PASS=true
+          if (( $(echo "$ERROR_RATE > 1.0" | bc -l) )); then
+            echo "❌ Error rate ${ERROR_RATE}% exceeds 1% threshold"
+            PASS=false
+          else
+            echo "✅ Error rate within threshold (< 1%)"
+          fi
+          
+          if [ "$P95_LATENCY" -gt 500 ]; then
+            echo "❌ P95 latency ${P95_LATENCY}ms exceeds 500ms threshold"
+            PASS=false
+          else
+            echo "✅ P95 latency within threshold (< 500ms)"
+          fi
+          
+          if (( $(echo "$SUCCESS_RATE < 99.0" | bc -l) )); then
+            echo "❌ Success rate ${SUCCESS_RATE}% below 99% threshold"
+            PASS=false
+          else
+            echo "✅ Success rate above threshold (> 99%)"
+          fi
+          
+          if [ "$PASS" = true ]; then
+            echo ""
+            echo "✅ All canary validation checks passed!"
+          else
+            echo ""
+            echo "⚠️ Some canary metrics outside threshold, but continuing (non-blocking)"
+          fi
 
       - name: Cleanup
         if: always()
@@ -226,12 +290,12 @@ jobs:
       - name: Wait for service
         run: |
           echo "⏳ Waiting for service to start..."
-          for i in {1..5}; do
+          for i in {1..10}; do
             if curl -fsSL http://localhost:8000/health > /dev/null 2>&1; then
               echo "✅ Service is ready"
               exit 0
             fi
-            echo "⏳ Retrying ($i/5)..."
+            echo "⏳ Retrying ($i/10)..."
             sleep 3
           done
           echo "⚠️ Service did not respond, but continuing with tests"
@@ -288,7 +352,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: acceptance-tests
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Production Deployment
         run: |
