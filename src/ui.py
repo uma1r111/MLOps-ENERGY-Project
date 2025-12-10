@@ -24,262 +24,109 @@ LANGSMITH_BASE_URL = "https://smith.langchain.com"
 def inject_custom_css():
     st.markdown("""
     <style>
-    /* Import Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
-    /* Global font */
-    * {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    * { font-family: 'Inter', sans-serif; }
+
+    /* === BACKGROUND IMAGE + DARK OVERLAY === */
+    [data-testid="stAppViewContainer"] {
+        background:
+            linear-gradient(rgba(0,0,0,0.82), rgba(0,0,0,0.94)),
+            url("background.jpg")
+            center/cover no-repeat fixed !important;
     }
-    
-    /* Main container styling */
-    .main {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+
+    .block-container {
+        background: transparent !important;
+        padding-top: 2rem !important;
     }
-    
-    /* Chat container */
+
+    /* === TITLE === */
+    h1, h2, h3 {
+        font-weight: 700 !important;
+        color: #e8f6ff !important;
+        text-shadow: 0 0 24px rgba(0, 200, 255, 0.55);
+    }
+
+    /* === SIDEBAR === */
+    section[data-testid="stSidebar"] {
+        background: rgba(5, 8, 12, 0.92) !important;
+        backdrop-filter: blur(10px);
+        border-right: 1px solid rgba(0,150,255,0.25);
+    }
+    section[data-testid="stSidebar"] * {
+        color: #e5f4ff !important;
+    }
+
+    .stButton button {
+        background: linear-gradient(135deg, #00aaff, #00e0ff) !important;
+        color: white !important;
+        border-radius: 10px !important;
+        padding: 8px 18px !important;
+        border: none !important;
+        font-weight: 600 !important;
+        transition: 0.15s ease;
+    }
+    .stButton button:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.15);
+    }
+
+    /* === CHAT === */
     .chat-container {
-        background: white;
-        border-radius: 20px;
-        padding: 24px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-        margin-bottom: 24px;
+        background: rgba(20,25,32,0.75);
+        border-radius: 18px;
+        padding: 22px;
+        border: 1px solid rgba(0,150,255,0.3);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 0 24px rgba(0,150,255,0.18);
         max-height: 500px;
         overflow-y: auto;
-        scroll-behavior: smooth;
     }
-    
-    /* Scrollbar styling */
-    .chat-container::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    .chat-container::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-    
-    .chat-container::-webkit-scrollbar-thumb {
-        background: #667eea;
-        border-radius: 10px;
-    }
-    
-    .chat-container::-webkit-scrollbar-thumb:hover {
-        background: #5568d3;
-    }
-    
-    /* User message bubble */
+
+    /* User */
     .user-message {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: rgba(0,150,255,0.9) !important;
         color: white;
+        border-radius: 16px 16px 4px 16px;
         padding: 14px 20px;
-        border-radius: 20px 20px 4px 20px;
-        margin: 12px 0;
-        margin-left: 20%;
-        max-width: 75%;
-        float: right;
-        clear: both;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        animation: slideInRight 0.3s ease-out;
-        word-wrap: break-word;
-        line-height: 1.6;
-    }
-    
-    /* Assistant message bubble */
-    .assistant-message {
-        background: #f7f9fc;
-        color: #2d3748;
-        padding: 14px 20px;
-        border-radius: 20px 20px 20px 4px;
-        margin: 12px 0;
-        margin-right: 20%;
-        max-width: 75%;
-        float: left;
-        clear: both;
-        border-left: 4px solid #667eea;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-        animation: slideInLeft 0.3s ease-out;
-        word-wrap: break-word;
-        line-height: 1.7;
-    }
-    
-    /* Animations */
-    @keyframes slideInRight {
-        from {
-            opacity: 0;
-            transform: translateX(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-    
-    @keyframes slideInLeft {
-        from {
-            opacity: 0;
-            transform: translateX(-30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-    
-    /* Input area styling */
-    .stTextArea textarea {
-        border-radius: 16px !important;
-        border: 2px solid #e2e8f0 !important;
-        padding: 14px 18px !important;
-        font-size: 15px !important;
-        transition: all 0.3s ease !important;
-        background: white !important;
-    }
-    
-    .stTextArea textarea:focus {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1) !important;
-        outline: none !important;
-    }
-    
-    /* Button styling */
-    .stButton button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 14px !important;
-        padding: 14px 32px !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-        transition: all 0.3s ease !important;
-        cursor: pointer !important;
-    }
-    
-    .stButton button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5) !important;
-    }
-    
-    .stButton button:active {
-        transform: translateY(0) !important;
-    }
-    
-    /* Sidebar styling */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #2d3748 0%, #1a202c 100%);
-    }
-    
-    section[data-testid="stSidebar"] * {
-        color: white !important;
-    }
-    
-    section[data-testid="stSidebar"] .stSelectbox > div > div {
-        background-color: rgba(255,255,255,0.1) !important;
-        border-color: rgba(255,255,255,0.2) !important;
-    }
-    
-    section[data-testid="stSidebar"] .stTextInput > div > div > input {
-        background-color: rgba(255,255,255,0.1) !important;
-        border-color: rgba(255,255,255,0.2) !important;
-        color: white !important;
-    }
-    
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background: rgba(255,255,255,0.05) !important;
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        padding: 12px !important;
-        transition: all 0.2s ease !important;
-    }
-    
-    .streamlit-expanderHeader:hover {
-        background: rgba(255,255,255,0.1) !important;
-    }
-    
-    /* Metrics styling */
-    .metric-card {
-        background: white;
-        padding: 18px;
-        border-radius: 14px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
         margin: 10px 0;
-        border-left: 4px solid #667eea;
-        transition: all 0.3s ease;
+        float: right;
+        max-width: 70%;
+        box-shadow: 0 0 18px rgba(0,150,255,0.55);
     }
-    
-    .metric-card:hover {
-        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-        transform: translateY(-2px);
+
+    /* Assistant */
+    .assistant-message {
+        background: rgba(12,18,24,0.85) !important;
+        color: #e8f6ff;
+        border-radius: 16px 16px 16px 4px;
+        padding: 14px 20px;
+        margin: 10px 0;
+        float: left;
+        max-width: 70%;
+        border-left: 4px solid #00caff;
+        box-shadow: 0 0 12px rgba(0,150,255,0.35);
     }
-    
-    /* Source card styling */
-    .source-card {
-        background: #f8fafc;
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 16px;
-        margin: 12px 0;
-        transition: all 0.3s ease;
-    }
-    
-    .source-card:hover {
-        border-color: #667eea;
-        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
-        transform: translateY(-2px);
-    }
-    
-    /* Status badge */
-    .status-badge {
-        display: inline-block;
-        padding: 6px 14px;
-        border-radius: 16px;
-        font-size: 13px;
-        font-weight: 600;
-        background: #48bb78;
-        color: white;
-        box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
-    }
-    
-    /* Results container */
-    .results-container {
-        background: white;
-        border-radius: 20px;
-        padding: 24px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        margin-top: 24px;
-    }
-    
-    /* Divider */
-    hr {
-        border: none;
-        border-top: 2px solid rgba(255,255,255,0.1);
-        margin: 20px 0;
-    }
-    
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* Clear floats */
-    .chat-container::after {
-        content: "";
-        display: table;
-        clear: both;
-    }
-    
-    /* Slider styling */
-    .stSlider > div > div > div {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    }
-    
-    /* Warning/Error boxes */
-    .stAlert {
+
+    /* Input */
+    .stTextArea textarea {
+        background: rgba(10,14,20,0.85) !important;
+        color: #eaf7ff !important;
+        border: 1px solid rgba(0,150,255,0.25) !important;
         border-radius: 12px !important;
-        border-left-width: 4px !important;
+        padding: 12px !important;
+        backdrop-filter: blur(6px);
     }
+
+    .stTextArea textarea:focus {
+        border: 1px solid #00caff !important;
+        box-shadow: 0 0 16px rgba(0,150,255,0.45);
+    }
+
+    /* Hide default UI items */
+    #MainMenu, header, footer {visibility: hidden;}
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -308,7 +155,7 @@ def fetch_initial_data():
 def format_source_display(sources: List) -> str:
     """Formats source documents in a clean card layout."""
     if not sources:
-        return '<div style="text-align: center; padding: 30px; color: #718096;">📄 No source documents found</div>'
+        return '<div style="text-align: center; padding: 30px; color: #a0aec0;">📄 No source documents found</div>'
 
     formatted = '<div style="margin-top: 16px;">'
     
@@ -324,15 +171,15 @@ def format_source_display(sources: List) -> str:
         formatted += f'''
         <div class="source-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <span style="font-weight: 600; color: #2d3748; font-size: 14px;">📄 Source {i}</span>
-                <span style="background: #edf2f7; padding: 5px 12px; border-radius: 10px; font-size: 12px; color: #4a5568; font-weight: 600;">
+                <span style="font-weight: 600; color: #e2e8f0; font-size: 14px;">📄 Source {i}</span>
+                <span style="background: rgba(102, 126, 234, 0.2); padding: 5px 12px; border-radius: 10px; font-size: 12px; color: #a0d0f4; font-weight: 600;">
                     Score: {score:.3f}
                 </span>
             </div>
-            <div style="font-size: 12px; color: #718096; margin-bottom: 10px; font-weight: 500;">
+            <div style="font-size: 12px; color: #a0aec0; margin-bottom: 10px; font-weight: 500;">
                 {source}{page_info}
             </div>
-            <div style="background: white; padding: 12px; border-radius: 8px; font-size: 13px; color: #4a5568; line-height: 1.7; border: 1px solid #e2e8f0;">
+            <div style="background: rgba(26, 32, 44, 0.6); padding: 12px; border-radius: 8px; font-size: 13px; color: #cbd5e0; line-height: 1.7; border: 1px solid rgba(102, 126, 234, 0.2);">
                 {preview}
             </div>
         </div>
@@ -470,10 +317,10 @@ def main_ui():
     
     if not st.session_state.messages:
         st.markdown("""
-        <div style="text-align: center; padding: 60px 20px; color: #718096;">
+        <div style="text-align: center; padding: 60px 20px; color: #a0aec0;">
             <div style="font-size: 64px; margin-bottom: 20px;">💬</div>
-            <div style="font-size: 22px; font-weight: 600; color: #2d3748; margin-bottom: 10px;">Start a Conversation</div>
-            <div style="font-size: 15px; color: #718096; line-height: 1.6;">Ask me about renewable energy, power systems, or energy efficiency!</div>
+            <div style="font-size: 22px; font-weight: 600; color: #e2e8f0; margin-bottom: 10px;">Start a Conversation</div>
+            <div style="font-size: 15px; color: #a0aec0; line-height: 1.6;">Ask me about renewable energy, power systems, or energy efficiency!</div>
         </div>
         """, unsafe_allow_html=True)
     else:
@@ -572,22 +419,22 @@ def main_ui():
             # Metrics in cards
             st.markdown(f"""
             <div class="metric-card">
-                <div style="font-size: 13px; color: #718096; margin-bottom: 6px; font-weight: 500;">Variant Used</div>
-                <div style="font-size: 20px; font-weight: 600; color: #2d3748;">{result.get('variant_name', 'N/A')}</div>
+                <div style="font-size: 13px; color: #a0aec0; margin-bottom: 6px; font-weight: 500;">Variant Used</div>
+                <div style="font-size: 20px; font-weight: 600; color: #e2e8f0;">{result.get('variant_name', 'N/A')}</div>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown(f"""
             <div class="metric-card">
-                <div style="font-size: 13px; color: #718096; margin-bottom: 6px; font-weight: 500;">Response Time</div>
-                <div style="font-size: 20px; font-weight: 600; color: #2d3748;">{result.get('latency', 0):.2f}s</div>
+                <div style="font-size: 13px; color: #a0aec0; margin-bottom: 6px; font-weight: 500;">Response Time</div>
+                <div style="font-size: 20px; font-weight: 600; color: #e2e8f0;">{result.get('latency', 0):.2f}s</div>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown(f"""
             <div class="metric-card">
-                <div style="font-size: 13px; color: #718096; margin-bottom: 6px; font-weight: 500;">Tokens Used</div>
-                <div style="font-size: 20px; font-weight: 600; color: #2d3748;">
+                <div style="font-size: 13px; color: #a0aec0; margin-bottom: 6px; font-weight: 500;">Tokens Used</div>
+                <div style="font-size: 20px; font-weight: 600; color: #e2e8f0;">
                     {result.get('tokens_used', {}).get('input', 0)} in / {result.get('tokens_used', {}).get('output', 0)} out
                 </div>
             </div>
@@ -595,8 +442,8 @@ def main_ui():
             
             st.markdown(f"""
             <div class="metric-card">
-                <div style="font-size: 13px; color: #718096; margin-bottom: 6px; font-weight: 500;">Estimated Cost</div>
-                <div style="font-size: 20px; font-weight: 600; color: #2d3748;">${result.get('estimated_cost', 0):.6f}</div>
+                <div style="font-size: 13px; color: #a0aec0; margin-bottom: 6px; font-weight: 500;">Estimated Cost</div>
+                <div style="font-size: 20px; font-weight: 600; color: #e2e8f0;">${result.get('estimated_cost', 0):.6f}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -621,10 +468,10 @@ def main_ui():
                 st.markdown(format_source_display(result.get("sources", [])), unsafe_allow_html=True)
             else:
                 st.markdown("""
-                <div style="text-align: center; padding: 60px 20px; color: #718096;">
+                <div style="text-align: center; padding: 60px 20px; color: #a0aec0;">
                     <div style="font-size: 56px; margin-bottom: 16px;">📄</div>
-                    <div style="font-size: 16px; font-weight: 500;">No sources to display</div>
-                    <div style="font-size: 13px; color: #a0aec0; margin-top: 8px;">Enable "Show Sources" in settings</div>
+                    <div style="font-size: 16px; font-weight: 500; color: #cbd5e0;">No sources to display</div>
+                    <div style="font-size: 13px; color: #718096; margin-top: 8px;">Enable "Show Sources" in settings</div>
                 </div>
                 """, unsafe_allow_html=True)
         
