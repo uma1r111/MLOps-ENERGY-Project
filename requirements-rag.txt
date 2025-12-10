@@ -1,39 +1,29 @@
-# ---------------------
-# Core RAG Dependencies with FastEmbed
-# ---------------------
-langchain
-langchain-core
-langchain-community
-fastembed
-faiss-cpu
-pypdf
+# Core RAG Dependencies
+langchain==0.2.9
+langchain-core==0.2.43
+langchain-community==0.2.9
+fastembed==0.7.4
+faiss-cpu==1.8.0
+pypdf==6.4.0
 
-# ---------------------
 # Google AI
-# ---------------------
 google-generativeai
 langchain-google-genai
 
-# ---------------------
 # API
-# ---------------------
-fastapi
-uvicorn[standard]
-pydantic
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.0
 python-multipart
 
-# ---------------------
 # Utils
-# ---------------------
 python-dotenv
 prometheus-client
 tqdm
 numpy
 onnxruntime
 
-# ---------------------
 # Testing
-# ---------------------
-pytest
-pytest-cov
-httpx
+pytest==9.0.2
+pytest-cov==7.0.0
+httpx==0.28.1
