@@ -87,16 +87,54 @@ jobs:
 
       - name: Run Prompt Evaluation
         run: |
+          # Create results directory
+          mkdir -p results
+          
           if [ -f scripts/evaluate_prompts.py ]; then
-            python scripts/evaluate_prompts.py --sample || echo "⚠️ Prompt evaluation failed but continuing"
+            echo "🧪 Running prompt evaluation..."
+            python scripts/evaluate_prompts.py --sample 2>&1 | tee results/evaluation_output.log || {
+              echo "⚠️ Prompt evaluation failed but continuing"
+              echo "Evaluation failed at $(date)" > results/evaluation_failed.txt
+            }
           else
-            echo "⚠️ Prompt evaluation script not found, skipping"
+            echo "⚠️ Prompt evaluation script not found"
+            echo "Script not found: scripts/evaluate_prompts.py" > results/script_not_found.txt
+            echo "Available files:" >> results/script_not_found.txt
+            ls -la scripts/ >> results/script_not_found.txt 2>&1 || echo "scripts/ directory not found" >> results/script_not_found.txt
           fi
+          
+          # Create a summary file
+          echo "Prompt Evaluation Summary" > results/summary.txt
+          echo "=========================" >> results/summary.txt
+          echo "Date: $(date)" >> results/summary.txt
+          echo "Commit: ${{ github.sha }}" >> results/summary.txt
+          echo "Branch: ${{ github.ref_name }}" >> results/summary.txt
+          echo "" >> results/summary.txt
+          
+          # List all generated files
+          echo "Generated files:" >> results/summary.txt
+          ls -lh results/ >> results/summary.txt 2>&1 || echo "No files generated" >> results/summary.txt
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
+        continue-on-error: true
+
+      - name: Check Results Directory
+        run: |
+          echo "📁 Checking results directory..."
+          if [ -d results ]; then
+            echo "✅ Results directory exists"
+            echo "Contents:"
+            ls -lah results/
+            echo ""
+            echo "File count: $(find results -type f | wc -l)"
+          else
+            echo "❌ Results directory does not exist"
+            mkdir -p results
+            echo "No evaluation results generated" > results/no_results.txt
+          fi
 
       - name: Upload Evaluation Results
         uses: actions/upload-artifact@v4
