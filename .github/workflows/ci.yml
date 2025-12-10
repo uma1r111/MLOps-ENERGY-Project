@@ -190,17 +190,18 @@ jobs:
           echo "📈 Collecting canary metrics from live service..."
           
           # Make sample requests to generate metrics
-          START_TIME=$(date +%s%3N)
           SUCCESS_COUNT=0
           TOTAL_REQUESTS=10
-          LATENCIES=()
+          LATENCY_SUM=0
+          LATENCY_FILE=$(mktemp)
           
           for i in $(seq 1 $TOTAL_REQUESTS); do
             REQUEST_START=$(date +%s%3N)
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health 2>/dev/null || echo "000")
             REQUEST_END=$(date +%s%3N)
             LATENCY=$((REQUEST_END - REQUEST_START))
-            LATENCIES+=($LATENCY)
+            echo "$LATENCY" >> "$LATENCY_FILE"
+            LATENCY_SUM=$((LATENCY_SUM + LATENCY))
             
             if [ "$HTTP_CODE" = "200" ]; then
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
@@ -211,12 +212,10 @@ jobs:
           # Calculate metrics
           SUCCESS_RATE=$(awk "BEGIN {printf \"%.1f\", ($SUCCESS_COUNT / $TOTAL_REQUESTS) * 100}")
           ERROR_RATE=$(awk "BEGIN {printf \"%.1f\", (($TOTAL_REQUESTS - $SUCCESS_COUNT) / $TOTAL_REQUESTS) * 100}")
+          AVG_LATENCY=$((LATENCY_SUM / TOTAL_REQUESTS))
           
-          # Calculate P95 latency (simple approximation - sort and take 95th percentile)
-          IFS=$'\n' SORTED_LATENCIES=($(sort -n <<<"${LATENCIES[*]}"))
-          P95_INDEX=$(awk "BEGIN {printf \"%.0f\", $TOTAL_REQUESTS * 0.95 - 1}")
-          P95_LATENCY=${SORTED_LATENCIES[$P95_INDEX]}
-          AVG_LATENCY=$(awk "BEGIN {sum=0; for(i=0; i<${#LATENCIES[@]}; i++) sum+=${LATENCIES[i]}; printf \"%.0f\", sum/${#LATENCIES[@]}}")
+          # Calculate P95 latency
+          P95_LATENCY=$(sort -n "$LATENCY_FILE" | awk 'BEGIN{c=0} {lat[c++]=$1} END{print lat[int(c*0.95)]}')
           
           echo ""
           echo "📊 Canary Metrics (from $TOTAL_REQUESTS test requests):"
@@ -228,26 +227,33 @@ jobs:
           
           # Validate thresholds
           PASS=true
-          if (( $(echo "$ERROR_RATE > 1.0" | bc -l) )); then
-            echo "❌ Error rate ${ERROR_RATE}% exceeds 1% threshold"
+          ERROR_THRESHOLD=1
+          P95_THRESHOLD=500
+          SUCCESS_THRESHOLD=99
+          
+          if (( $(echo "$ERROR_RATE > $ERROR_THRESHOLD" | awk '{print ($1 > $2)}') )); then
+            echo "❌ Error rate ${ERROR_RATE}% exceeds ${ERROR_THRESHOLD}% threshold"
             PASS=false
           else
-            echo "✅ Error rate within threshold (< 1%)"
+            echo "✅ Error rate within threshold (< ${ERROR_THRESHOLD}%)"
           fi
           
-          if [ "$P95_LATENCY" -gt 500 ]; then
-            echo "❌ P95 latency ${P95_LATENCY}ms exceeds 500ms threshold"
+          if [ "$P95_LATENCY" -gt "$P95_THRESHOLD" ]; then
+            echo "❌ P95 latency ${P95_LATENCY}ms exceeds ${P95_THRESHOLD}ms threshold"
             PASS=false
           else
-            echo "✅ P95 latency within threshold (< 500ms)"
+            echo "✅ P95 latency within threshold (< ${P95_THRESHOLD}ms)"
           fi
           
-          if (( $(echo "$SUCCESS_RATE < 99.0" | bc -l) )); then
-            echo "❌ Success rate ${SUCCESS_RATE}% below 99% threshold"
+          if (( $(echo "$SUCCESS_RATE < $SUCCESS_THRESHOLD" | awk '{print ($1 < $2)}') )); then
+            echo "❌ Success rate ${SUCCESS_RATE}% below ${SUCCESS_THRESHOLD}% threshold"
             PASS=false
           else
-            echo "✅ Success rate above threshold (> 99%)"
+            echo "✅ Success rate above threshold (> ${SUCCESS_THRESHOLD}%)"
           fi
+          
+          # Cleanup temp file
+          rm -f "$LATENCY_FILE"
           
           if [ "$PASS" = true ]; then
             echo ""
