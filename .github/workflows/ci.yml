@@ -56,9 +56,8 @@ jobs:
             --cov-report=term-missing \
             --cov-report=html \
             --cov-report=xml \
-            --cov-fail-under=80 \
-            --omit="model_serving/service.py"
-          # ☝️ REMOVED || true - now fails if coverage < 80%
+            --cov-fail-under=80
+          # ☝️ Removed --omit="model_serving/service.py"
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
