@@ -181,7 +181,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg by (variant) (ab_test_latency_seconds)",
+          "expr": "sum(ab_test_latency_seconds_sum) by (variant) / sum(ab_test_latency_seconds_count) by (variant)",
           "legendFormat": "{{variant}}",
           "refId": "A"
         }
@@ -333,7 +333,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg by (variant) (ab_test_satisfaction_score)",
+          "expr": "sum(ab_test_satisfaction_score_sum) by (variant) / sum(ab_test_satisfaction_score_count) by (variant)",
           "legendFormat": "{{variant}}",
           "refId": "A"
         }

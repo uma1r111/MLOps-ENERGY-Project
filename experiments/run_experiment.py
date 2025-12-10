@@ -41,7 +41,7 @@ load_dotenv()
 
 
 # --- 2. CONFIGURATION ---
-MLFLOW_TRACKING_URI = "http://54.226.40.241:8000/"
+MLFLOW_TRACKING_URI = "http://13.220.125.38:8000/"
 EXPERIMENT_NAME = "RAG_Prompt_Engineering"
 EVAL_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "eval.jsonl")
 REPORT_PATH = os.path.join(PROJECT_ROOT, "prompt_report.md")
@@ -239,7 +239,8 @@ def generate_report(results):
             report_content += f"**Score:** {row['quality_score']}/5\n"
             report_content += "---\n"
 
-    with open(REPORT_PATH, "w") as f:
+    # Fix: Use UTF-8 encoding to support emojis and special characters
+    with open(REPORT_PATH, "w", encoding="utf-8") as f:
         f.write(report_content)
     print(f"\n📄 Report generated at: {REPORT_PATH}")
 
