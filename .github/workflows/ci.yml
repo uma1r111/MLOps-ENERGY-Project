@@ -48,16 +48,18 @@ jobs:
         continue-on-error: false  # Fail on format errors
 
       - name: Run Unit & Integration Tests (80% Coverage Required)
-        env:
-          TEST_MODE: "1"
-        run: |
-          pytest --disable-warnings \
-            --cov=. \
-            --cov-report=term-missing \
-            --cov-report=html \
-            --cov-report=xml \
-            --cov-fail-under=80
-          # ☝️ Removed --omit="model_serving/service.py"
+  env:
+    TEST_MODE: "1"
+  run: |
+    pytest --disable-warnings \
+      --cov=src \
+      --cov=scripts \
+      --cov=experiments \
+      --cov-report=term-missing \
+      --cov-report=html \
+      --cov-report=xml \
+      --cov-fail-under=80
+
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
