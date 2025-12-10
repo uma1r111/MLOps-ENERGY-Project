@@ -1,6 +1,6 @@
 ﻿# =============================
 # LLMOps CI/CD Pipeline - IMPROVED
-# ==========================
+# =============================
 name: LLMOps CI/CD Pipeline
 
 on:
@@ -48,18 +48,17 @@ jobs:
         continue-on-error: false  # Fail on format errors
 
       - name: Run Unit & Integration Tests (80% Coverage Required)
-  env:
-    TEST_MODE: "1"
-  run: |
-    pytest --disable-warnings \
-      --cov=src \
-      --cov=scripts \
-      --cov=experiments \
-      --cov-report=term-missing \
-      --cov-report=html \
-      --cov-report=xml \
-      --cov-fail-under=80
-
+        env:
+          TEST_MODE: "1"
+        run: |
+          pytest --disable-warnings \
+            --cov=src \
+            --cov=scripts \
+            --cov=experiments \
+            --cov-report=term-missing \
+            --cov-report=html \
+            --cov-report=xml \
+            --cov-fail-under=80
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -248,13 +247,8 @@ jobs:
       - name: 📊 Phase 3 - Smoke Tests
         run: |
           echo "📊 Running smoke tests..."
-          
-          # Test health endpoint
           curl -fsSL http://localhost:8000/health || exit 1
-          
-          # Test metrics endpoint (if available)
           curl -fsSL http://localhost:8000/metrics || echo "⚠️ Metrics endpoint not available"
-          
           echo "✅ Smoke tests passed"
 
       - name: 📈 Phase 4 - Monitor Metrics (Simulated)
