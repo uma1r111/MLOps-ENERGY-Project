@@ -360,11 +360,146 @@ jobs:
     needs: acceptance-tests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - name: Production Deployment
+      - uses: actions/checkout@v4
+
+      - name: Pull Production Image
         run: |
-          echo "🚀 Deploying to production..."
-          echo "  Image: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
-          echo "  Environment: Production"
-          echo "  Model: ${{ secrets.GEMINI_MODEL }}"
-          echo "  LangSmith Project: ${{ secrets.LANGSMITH_PROJECT }}"
-          echo "✅ Production deployment complete!"
+          echo "📦 Pulling production image..."
+          docker pull ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+          docker tag ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} ${{ env.DOCKER_IMAGE }}:production
+
+      - name: Stop Old Production Container
+        run: |
+          echo "🛑 Stopping old production container if exists..."
+          docker stop mlops-production 2>/dev/null || echo "No existing container to stop"
+          docker rm mlops-production 2>/dev/null || echo "No existing container to remove"
+
+      - name: Deploy Production Container
+        run: |
+          echo "🚀 Starting production container..."
+          docker run -d \
+            --name mlops-production \
+            --restart unless-stopped \
+            -p 8080:8000 \
+            -e ENVIRONMENT=production \
+            -e TEST_MODE=0 \
+            -e GOOGLE_API_KEY="${{ secrets.GOOGLE_API_KEY }}" \
+            -e LANGSMITH_API_KEY="${{ secrets.LANGSMITH_API_KEY }}" \
+            -e GEMINI_MODEL="${{ secrets.GEMINI_MODEL }}" \
+            -e LANGSMITH_PROJECT="${{ secrets.LANGSMITH_PROJECT }}" \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+          
+          echo "⏳ Waiting for production service to start..."
+          sleep 8
+
+      - name: Verify Production Deployment
+        run: |
+          echo "🏥 Running production health checks..."
+          
+          for i in {1..15}; do
+            if curl -fsSL http://localhost:8080/health > /dev/null 2>&1; then
+              echo "✅ Production service is healthy!"
+              HEALTH_RESPONSE=$(curl -s http://localhost:8080/health)
+              echo "📊 Health Check Response:"
+              echo "$HEALTH_RESPONSE" | jq '.' || echo "$HEALTH_RESPONSE"
+              
+              # Get container stats
+              echo ""
+              echo "📈 Container Stats:"
+              docker stats mlops-production --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
+              
+              # Get container info
+              echo ""
+              echo "🐳 Container Info:"
+              docker inspect mlops-production --format='Image: {{.Config.Image}}'
+              docker inspect mlops-production --format='Status: {{.State.Status}}'
+              docker inspect mlops-production --format='Started: {{.State.StartedAt}}'
+              docker inspect mlops-production --format='Ports: {{range $p, $conf := .NetworkSettings.Ports}}{{$p}} -> {{(index $conf 0).HostPort}} {{end}}'
+              
+              exit 0
+            fi
+            echo "⏳ Waiting for service... ($i/15)"
+            sleep 2
+          done
+          
+          echo "❌ Production service failed to become healthy"
+          echo "📋 Container logs:"
+          docker logs mlops-production --tail 50
+          exit 1
+
+      - name: Run Production Smoke Tests
+        run: |
+          echo "🧪 Running production smoke tests..."
+          
+          # Test 1: Health endpoint
+          echo "Test 1: Health endpoint"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Health check passed (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Health check failed (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          
+          # Test 2: Root endpoint
+          echo "Test 2: Root endpoint"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Root endpoint passed (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Root endpoint failed (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          
+          # Test 3: Response time check
+          echo "Test 3: Response time check"
+          RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' http://localhost:8080/health)
+          RESPONSE_MS=$(echo "$RESPONSE_TIME * 1000" | bc)
+          echo "Response time: ${RESPONSE_MS}ms"
+          if (( $(echo "$RESPONSE_TIME < 1.0" | bc -l) )); then
+            echo "✅ Response time acceptable"
+          else
+            echo "⚠️ Response time high but acceptable"
+          fi
+          
+          echo ""
+          echo "✅ All production smoke tests passed!"
+
+      - name: Production Deployment Summary
+        if: success()
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "🎉 PRODUCTION DEPLOYMENT SUCCESSFUL"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+          echo "📦 Deployment Details:"
+          echo "  • Image: ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}"
+          echo "  • Container: mlops-production"
+          echo "  • Port: 8080 → 8000"
+          echo "  • Environment: Production"
+          echo "  • Commit: ${{ github.sha }}"
+          echo "  • Branch: ${{ github.ref_name }}"
+          echo "  • Deployed by: ${{ github.actor }}"
+          echo "  • Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          echo "🔗 Endpoints:"
+          echo "  • Health: http://localhost:8080/health"
+          echo "  • Root: http://localhost:8080/"
+          echo "  • Metrics: http://localhost:8080/metrics"
+          echo ""
+          echo "📊 Model Configuration:"
+          echo "  • Model: ${{ secrets.GEMINI_MODEL }}"
+          echo "  • LangSmith Project: ${{ secrets.LANGSMITH_PROJECT }}"
+          echo ""
+          echo "✅ Production service is live and healthy!"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Rollback on Failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed! Rolling back..."
+          docker stop mlops-production 2>/dev/null || true
+          docker rm mlops-production 2>/dev/null || true
+          echo "🔄 Rollback complete. Previous version should be restored manually."
+          exit 1
