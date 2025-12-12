@@ -1843,7 +1843,7 @@ curl -X POST \
     "top_k": 3
   }'
 ```
-(screenshot/Vertex-ai.png)
+![Vertex AI Dashboard](screenshots/Vertex-ai.png)
 
 ### Production Features
 
@@ -1878,7 +1878,7 @@ gcloud monitoring dashboards list
 - **Load balancing**: Traffic distributed across replicas
 - **Zero-downtime updates**: Rolling deployments
 
-![Vertex AI Dashboard](screenshots/Vertex-ai.png)
+
 ---
 ## 🛠️ Makefile Commands
 
