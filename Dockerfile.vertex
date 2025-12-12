@@ -18,34 +18,28 @@ ENV MKL_NUM_THREADS=1
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
-# Copy requirements
+# Copy and install dependencies
 COPY requirements.txt requirements-rag.txt ./
-
-# Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir -r requirements-rag.txt && \
-    pip install --no-cache-dir google-cloud-aiplatform uvicorn
+    pip install --no-cache-dir google-cloud-aiplatform
 
-# Create directories
-RUN mkdir -p /app/logs /app/models /app/data/faiss_index
-
-# Copy application code
+# Copy application
 COPY src/ ./src/
 COPY config/ ./config/
+COPY app.py ./
 
 # Copy FAISS index
 COPY data/faiss_index/ ./data/faiss_index/
 
-# Verify FAISS index
-RUN ls -la /app/data/faiss_index/ && \
-    test -f /app/data/faiss_index/index.faiss || (echo "ERROR: FAISS index not found!" && exit 1)
+# Create directories
+RUN mkdir -p /app/logs /app/models
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 EXPOSE 8080
 
-# Run app from src folder
-CMD ["python", "-u", "src/app.py"]
+CMD ["python", "app.py"]
