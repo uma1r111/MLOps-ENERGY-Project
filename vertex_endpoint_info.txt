@@ -1,0 +1,3 @@
+ENDPOINT_ID=projects/llmops-480921/locations/us-central1/endpoints/5078854215418249216
+PROJECT_ID=llmops-480921
+REGION=us-central1
