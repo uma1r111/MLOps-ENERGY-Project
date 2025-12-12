@@ -1828,7 +1828,8 @@ model.deploy(
     traffic_percentage=100
 )
 ```
-(screenshot/deployment.png)
+![Deployment](screenshots/deployment.png)
+
 
 #### 4. Test Deployment
 ```bash
@@ -1877,6 +1878,7 @@ gcloud monitoring dashboards list
 - **Load balancing**: Traffic distributed across replicas
 - **Zero-downtime updates**: Rolling deployments
 
+![Vertex AI Dashboard](screenshots/Vertex-ai.png)
 ---
 ## 🛠️ Makefile Commands
 
