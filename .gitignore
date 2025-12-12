@@ -39,3 +39,4 @@ __pycache__/
 EOF
 
 src/background.jpg
+.env.vertex
