@@ -1,0 +1,45 @@
+﻿FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Environment variables
+ENV KMP_DUPLICATE_LIB_OK=TRUE
+ENV OMP_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+
+# Copy and install dependencies
+COPY requirements.txt requirements-rag.txt ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r requirements-rag.txt && \
+    pip install --no-cache-dir google-cloud-aiplatform
+
+# Copy application
+COPY src/ ./src/
+COPY config/ ./config/
+COPY app.py ./
+
+# Copy FAISS index
+COPY data/faiss_index/ ./data/faiss_index/
+
+# Create directories
+RUN mkdir -p /app/logs /app/models
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+EXPOSE 8080
+
+CMD ["python", "app.py"]
