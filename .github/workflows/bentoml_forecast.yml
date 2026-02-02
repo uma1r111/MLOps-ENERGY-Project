@@ -1,8 +1,8 @@
 name: BentoML Energy Model Forecast
 
 on:
-  schedule:
-    - cron: "0 10 * * *"  # Runs daily at 3 PM PKT
+#  schedule:
+#    - cron: "0 10 * * *"  # Runs daily at 3 PM PKT
   workflow_dispatch:
   workflow_run:
     workflows: ["Model Save"]
