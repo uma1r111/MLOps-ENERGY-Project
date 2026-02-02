@@ -1,8 +1,8 @@
 name: Daily Data Collection
 
 on:
-  schedule:
-    - cron: "0 9 * * *" # Daily at 9 AM UTC (2 PM PKT)
+#  schedule:
+#    - cron: "0 9 * * *" # Daily at 9 AM UTC (2 PM PKT)
   workflow_dispatch: # Allow manual trigger
 
 permissions:
